@@ -29,6 +29,9 @@ python scripts/run_hidden_pie_demo.py
 # Gemma 3 demo: LLM agents via local Ollama (requires ollama pull gemma3)
 python scripts/run_gemma3_hidden_pie_demo.py
 
+# Run all three Gemma proposer strategies sequentially
+powershell -ExecutionPolicy Bypass -File scripts/run_gemma3_strategy_set.ps1
+
 # Optional live Ollama tests, requires Ollama running and gemma3 installed
 $env:RUN_OLLAMA_TESTS="1"
 python -m pytest tests/test_ollama_client.py
@@ -38,7 +41,9 @@ python -m pytest tests/test_ollama_client.py
 
 Phase 1 is complete: Hidden Pie Ultimatum with Audit works as a heuristic-agent research MVP with metrics, sweeps, JSONL/JSON outputs, CSV output, plots, a runnable demo script, and documentation.
 
-Phase 2/3 foundations are present: the repository has an LLM layer with a provider-agnostic `LLMClient` protocol, `FakeLLMClient`, LLM-backed agents, prompt builders, JSON parsing, and a local `OllamaLLMClient` for Gemma 3. Paid provider clients and API key handling are not implemented yet.
+Phase 2 foundations are present: the repository has an LLM layer with a provider-agnostic `LLMClient` protocol, `FakeLLMClient`, LLM-backed agents, prompt builders, JSON parsing, and raw LLM observability metadata in round logs.
+
+Phase 3A local-provider support is present: `OllamaLLMClient` runs Gemma 3 locally through Ollama. Paid provider clients and API key handling are not implemented yet.
 
 Local Gemma 3 setup has been verified with Ollama: `gemma3:latest` and `gemma3:4b` are available locally, and `RUN_OLLAMA_TESTS=1 python -m pytest tests/test_ollama_client.py` passes when Ollama is running.
 
@@ -80,6 +85,7 @@ Do not rewrite these interfaces. Future agents should subclass `BaseProposer` or
 - `ultimatum_arena/analysis/plots.py`: `plot_metric_by_audit_prob()` using matplotlib Agg.
 - `ultimatum_arena/storage/jsonl.py`: JSONL/JSON persistence helpers.
 - `ultimatum_arena/llm/`: provider-agnostic LLM layer, fake client, parser, prompts, LLM agents, and local Ollama client.
+- `scripts/run_gemma3_strategy_set.ps1`: sequentially runs the Gemma demo for `honest_fair`, `self_interested`, and `deceptive` proposer strategies.
 
 ## Phase 1 Demo
 
@@ -179,7 +185,7 @@ Public LLM pieces:
 
 - `LLMClient` protocol: `generate(prompt: str) -> str`
 - `FakeLLMClient`: deterministic test client
-- `LLMProposer`
+- `LLMProposer`, with proposer strategy profiles: `honest_fair`, `self_interested`, and `deceptive`
 - `LLMResponder`
 - `OllamaLLMClient`
 - prompt builders and robust JSON extraction/parser
@@ -200,6 +206,17 @@ python -m pytest tests/test_ollama_client.py
 
 The local Ollama tests have been verified against `gemma3`. A Gemma 3 demo script is available at `scripts/run_gemma3_hidden_pie_demo.py`. It runs 3 rounds by default, writes results under `outputs/gemma3_demo/YYYYMMDD_HHMMSS/`, and requires no API keys. Run `python scripts/run_gemma3_hidden_pie_demo.py --help` for all options. Gemma 3 may occasionally return unparsable JSON; rerun or improve prompts in `ultimatum_arena/llm/prompts.py` if needed.
 
+Useful Gemma commands:
+
+```powershell
+python scripts/run_gemma3_hidden_pie_demo.py --rounds 50 --strategy honest_fair
+python scripts/run_gemma3_hidden_pie_demo.py --rounds 50 --strategy self_interested
+python scripts/run_gemma3_hidden_pie_demo.py --rounds 50 --strategy deceptive
+powershell -ExecutionPolicy Bypass -File scripts/run_gemma3_strategy_set.ps1
+```
+
+The strategy-set script stops on the first failed run. If `ollama serve` reports that port `11434` is already in use, Ollama is already running. Verify it with `Invoke-RestMethod http://localhost:11434/api/tags`.
+
 The Gemma demo uses:
 
 - `OllamaLLMClient(model="gemma3")`
@@ -209,6 +226,12 @@ The Gemma demo uses:
 - `run_experiment`
 
 Default Gemma demo settings are intentionally small: 3 rounds, `audit_prob=0.25`, `lie_penalty=25.0`, `rng_seed=42`, and `temperature=0.2`.
+
+Recent Gemma strategy runs show the expected Hidden Pie + Audit mechanism:
+
+- `honest_fair`: truthful claims, high acceptance, no deception.
+- `self_interested`: truthful claims, lower/more variable offers, no deception.
+- `deceptive`: frequent underclaims, offers near half of the claimed pie, high acceptance, and audit-driven lie detection around the configured audit rate.
 
 ## Phase Boundaries
 
@@ -224,11 +247,13 @@ Phase 2:
 - Provider-agnostic LLM architecture.
 - Fake client first.
 - Prompt builders and robust JSON parsing.
+- LLM proposer/responder agents with raw prompt/response metadata.
 
 Phase 3A:
 
 - Local Ollama/Gemma 3 support.
 - No API keys.
+- Gemma proposer strategy profiles and sequential local strategy runner.
 
 Later provider phases:
 
@@ -258,3 +283,5 @@ Do not add paid providers, API key handling, async architecture, databases, web 
 - files under `scripts/` or `.claude/`
 
 It intentionally skips `CLAUDE.md` itself to avoid update loops and ignores generated/noisy paths such as `outputs/`, `__pycache__/`, `.pytest_cache/`, `*.egg-info/`, `dist/`, and `build/`.
+
+The same settings file also contains an async review-agent hook for edited source/config/doc files. It skips generated paths and `.claude/` settings files, then checks for concrete bugs, security issues, code-quality problems, and architecture drift. If it finds issues, it rewakes the session with a short review; otherwise it stays silent.

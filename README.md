@@ -52,6 +52,9 @@ python scripts/run_hidden_pie_demo.py
 # Run the Gemma 3 demo (LLM agents via local Ollama)
 ollama pull gemma3
 python scripts/run_gemma3_hidden_pie_demo.py
+
+# Run all three Gemma proposer strategies sequentially
+powershell -ExecutionPolicy Bypass -File scripts/run_gemma3_strategy_set.ps1
 ```
 
 The Phase 1 demo writes to a new timestamped folder under `outputs/hidden_pie_demo/YYYYMMDD_HHMMSS/`.
@@ -79,7 +82,7 @@ Running the script twice produces two separate timestamped folders; old outputs 
 Prerequisites:
 
 ```bash
-ollama pull gemma3   # download the model (~5 GB)
+ollama pull gemma3   # download the local Gemma model
 # Ollama must be running (ollama serve, or it may already be running as a service)
 ```
 
@@ -98,11 +101,32 @@ Outputs are written to `outputs/gemma3_demo/YYYYMMDD_HHMMSS/`:
 
 No API key required. Defaults: 3 rounds, temperature 0.2, audit_prob 0.25, lie_penalty 25.
 
-Optional flags:
+The Gemma proposer supports explicit strategy profiles:
+
+| Strategy | Meaning |
+|---|---|
+| `honest_fair` | Reports the true pie and aims for fair, high-acceptance offers |
+| `self_interested` | Reports the true pie but tries to keep more payoff while still being accepted |
+| `deceptive` | Underclaims the true pie and offers about half of the claimed pie, accepting audit risk |
+
+Optional commands:
 
 ```bash
 python scripts/run_gemma3_hidden_pie_demo.py --model gemma3 --rounds 5 --temperature 0.3
+python scripts/run_gemma3_hidden_pie_demo.py --rounds 50 --strategy deceptive
 python scripts/run_gemma3_hidden_pie_demo.py --help
+```
+
+To run the three strategy profiles one after another:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run_gemma3_strategy_set.ps1
+```
+
+The strategy-set script stops on the first failed run. If Ollama is already running, `ollama serve` may report that port `11434` is in use; that is expected. Verify the local API with:
+
+```powershell
+Invoke-RestMethod http://localhost:11434/api/tags
 ```
 
 > **Note:** Gemma 3 may occasionally return unparsable JSON. If this happens the script exits with a clear error. Rerun or improve the prompts in `ultimatum_arena/llm/prompts.py`.
@@ -193,8 +217,9 @@ plot_metric_by_audit_prob(rows, "deception_rate", "outputs/plots/deception.png")
 | Phase | Status | Description |
 |---|---|---|
 | **Phase 1** | Complete | Hidden Pie Audit game, heuristic agents, sweep runner, CSV/JSON output, matplotlib plots |
-| **Phase 2** | In progress | LLM agent infrastructure: `LLMClient` protocol, `FakeLLMClient` for tests, prompt builders, response parser, `LLMProposer`/`LLMResponder` |
-| **Phase 3** | In progress | Real model providers starting with local Ollama (`OllamaLLMClient`) |
+| **Phase 2** | Complete foundation | LLM agent infrastructure: `LLMClient` protocol, `FakeLLMClient` for tests, prompt builders, response parser, `LLMProposer`/`LLMResponder` |
+| **Phase 3A** | Complete local provider | Local Ollama/Gemma support through `OllamaLLMClient`; no API keys required |
+| **Phase 3B** | Planned | Paid provider clients such as OpenAI-compatible and Anthropic-compatible clients |
 | **Phase 4** | Planned | Multi-model comparison sweeps; head-to-head proposer vs responder matchups |
 | **Phase 5** | Planned | Prompt-attack / reputation league; adversarial prompting benchmarks |
 
@@ -213,5 +238,18 @@ ultimatum_arena/
   llm/          LLMClient protocol, FakeLLMClient, OllamaLLMClient, prompts, parser
 scripts/
   run_hidden_pie_demo.py   Phase 1 end-to-end demo
+  run_gemma3_hidden_pie_demo.py
+  run_gemma3_strategy_set.ps1
 tests/                     unit tests (2 live-Ollama integration tests skipped by default)
 ```
+
+---
+
+## Claude Automation
+
+The repository includes `.claude/settings.local.json` hooks for Claude Code:
+
+- a `CLAUDE.md` maintenance hook that checks whether architecture guidance needs updating after source, test, script, doc, or config edits
+- a focused review hook that inspects edited source/config/doc files for concrete bugs, security issues, quality issues, and architecture drift
+
+The hooks intentionally ignore generated artifacts under `outputs/`, caches, build directories, and `.claude/` settings files to avoid review/update loops.
