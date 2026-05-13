@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python -m pytest tests/ -v)",
+      "Skill(update-config)",
+      "Bash(python:*)",
+      "Read",
+      "Write",
+      "Edit"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "A file was just written, deleted or edited. Hook input: $ARGUMENTS\n\nFirst, extract the file_path from the tool_input in the hook input JSON. If the file_path ends with 'CLAUDE.md', do nothing and stop to avoid update loops.\n\nOnly consider files that can affect repository guidance or public behavior. Continue for Python source/tests/scripts (*.py), Markdown docs (*.md), project/config files (*.toml, *.json), .gitignore, and files under scripts/ or .claude/. For other generated or unrelated files, do nothing and stop. In particular, ignore files under outputs/, __pycache__/, .pytest_cache/, *.egg-info/, dist/, and build/.\n\nRead the current CLAUDE.md at C:/code/claude/ultimatum_arena/CLAUDE.md and assess whether the edit introduces any change that makes CLAUDE.md inaccurate or incomplete. Examples: a new module or script was added, a public interface changed, commands changed, dependencies changed, output paths/layout changed, phase status changed, LLM/provider behavior changed, or architecture/data-flow guidance needs updating.\n\nIf CLAUDE.md is still accurate, do nothing. If it needs updating, edit it in place to reflect the current state of the codebase. Keep the same structure and tone; only change what is now incorrect or missing. Keep it concise and avoid documenting generated outputs in detail beyond their stable layout.",
+            "timeout": 60,
+            "async": true,
+            "statusMessage": "Checking if CLAUDE.md needs updating..."
+          },
+          {
+            "type": "agent",
+            "prompt": "A file was just written or edited. Hook input: $ARGUMENTS\n\nExtract the file_path from tool_input in the hook input JSON.\n\nSkip the review entirely (do nothing) if:\n- The path is under outputs/, __pycache__/, .pytest_cache/, *.egg-info/, dist/, or build/\n- The file extension is not .py, .toml, .json, .md, .txt, or .gitignore\n- The file is a settings or config file under .claude/ (to avoid review loops)\n\nFor all other files, read the file at that path and perform a focused code review. Check for:\n1. Bugs: off-by-one errors, incorrect logic, unhandled edge cases, wrong variable usage\n2. Security issues: command injection, path traversal, unsafe eval/exec, hardcoded secrets, unvalidated inputs at system boundaries\n3. Code quality: dead code, unused imports, obvious inefficiencies, misleading variable names\n4. Architecture consistency with this project: does it respect the interfaces defined in agents/base.py (BaseProposer, BaseResponder)? Does it keep compute_metrics() pure? Does it avoid paid providers, async architecture, databases, or web UI unless explicitly requested? Does it use factories for sweep agents?\n\nIf you find concrete issues, output a brief report (under 200 words) listing each issue with its line number and a one-line description. If the code looks clean, output nothing.",
+            "timeout": 90,
+            "asyncRewake": true,
+            "rewakeMessage": "Code review found issues in the file you just wrote:",
+            "statusMessage": "Reviewing code..."
+          }
+        ]
+      }
+    ]
+  }
+}

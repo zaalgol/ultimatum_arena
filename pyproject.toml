@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ultimatum_arena"
+version = "0.1.0"
+description = "Research framework for ultimatum game variants with LLM agents."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ultimatum_arena*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
