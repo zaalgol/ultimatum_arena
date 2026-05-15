@@ -25,6 +25,14 @@ python scripts/run_hidden_pie_demo.py
 
 # Gemma 3 demo (LLM agents via local Ollama — requires ollama pull gemma3)
 python scripts/run_gemma3_hidden_pie_demo.py
+
+# Run all three Gemma proposer strategies sequentially
+powershell -ExecutionPolicy Bypass -File scripts/run_gemma3_strategy_set.ps1
+
+# Phase 4 research sweep (requires Ollama + gemma3)
+python scripts/run_gemma3_research_sweep.py --preset smoke
+python scripts/run_gemma3_research_sweep.py --preset research
+python scripts/run_gemma3_research_sweep.py --help
 ```
 
 ## Architecture
@@ -47,21 +55,27 @@ HiddenPieAuditEnv.step()                  →  RoundResult
 
 **`runners/basic.py`** — `run_experiment()`: N rounds, notifies agents, optionally writes `{name}.jsonl` + `{name}_summary.json`.
 
-**`runners/sweep.py`** — `run_audit_penalty_sweep()`: grid over `audit_probabilities × lie_penalties × seeds`, returns metric rows, writes `sweep_summary.csv`.
+**`runners/sweep.py`** — `run_audit_penalty_sweep()`: heuristic grid over `audit_probabilities × lie_penalties × seeds`, returns metric rows, writes `sweep_summary.csv`.
+
+**`runners/llm_sweep.py`** — `run_llm_strategy_sweep()`: LLM grid over `strategies × audit_probabilities × lie_penalties × seeds`. Calls `proposer_client_factory` and `responder_client_factory` once per cell. Writes per-run logs under `runs/`, `combined_summary.csv`, `manifest.json`; `save_aggregate_csv` and plots are called by the script.
 
 **`analysis/metrics.py`** — Pure function `compute_metrics(list[RoundResult]) → dict`. 20 keys.
 
-**`analysis/plots.py`** — `plot_metric_by_audit_prob()`: PNG output via matplotlib Agg. Validates all rows.
+**`analysis/plots.py`** — `plot_metric_by_audit_prob()`: PNG via matplotlib Agg, group by any field. `plot_metric_by_audit_prob_for_strategies()`: convenience wrapper grouping by strategy with optional lie_penalty filter. `save_aggregate_csv()`: means by (strategy, audit_prob, lie_penalty).
 
 **`storage/jsonl.py`** — `append_result` / `load_results` (JSONL); `save_summary` (JSON).
 
 **`llm/`** — Phase 2/3 LLM layer: `LLMClient` protocol, `FakeLLMClient`, prompt builders, parser, `LLMProposer`/`LLMResponder`, `OllamaLLMClient`.
 
-## Phase 1 / Phase 2 boundary
+## Phase boundaries
 
 **Phase 1** (complete): `envs`, `schemas`, heuristic `agents`, `runners`, `analysis`, `storage`, demo script.
 
-**Phase 2+** (in progress): `ultimatum_arena/llm/`. Keep Phase 2 changes from breaking Phase 1 tests.
+**Phase 2** (complete): `ultimatum_arena/llm/` — LLM agent infrastructure, fake client, prompts, parser.
+
+**Phase 3A** (complete): `OllamaLLMClient`, Gemma strategy profiles, `run_gemma3_hidden_pie_demo.py`, `run_gemma3_strategy_set.ps1`.
+
+**Phase 4** (starting): `run_llm_strategy_sweep()`, `run_gemma3_research_sweep.py`, aggregate CSV, strategy plots.
 
 ## Extending with new agents
 

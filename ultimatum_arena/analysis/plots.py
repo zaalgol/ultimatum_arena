@@ -7,11 +7,24 @@ in headless / test environments without a display.
 from __future__ import annotations
 
 import collections
+import csv
 from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")  # must be set before importing pyplot
 import matplotlib.pyplot as plt
+
+
+# Metrics written by save_aggregate_csv (in column order after config fields).
+_AGGREGATE_METRICS = [
+    "acceptance_rate",
+    "deception_rate",
+    "detected_lie_rate",
+    "lie_detection_rate_among_lies",
+    "proposer_mean_payoff",
+    "responder_mean_payoff",
+    "proposer_advantage",
+]
 
 
 def plot_metric_by_audit_prob(
@@ -109,3 +122,99 @@ def plot_metric_by_audit_prob(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, format="png")
     plt.close(fig)
+
+
+def plot_metric_by_audit_prob_for_strategies(
+    rows: list[dict],
+    metric: str,
+    output_path: str | Path,
+    *,
+    lie_penalty: float | None = None,
+) -> None:
+    """Plot *metric* vs ``audit_prob`` with one line per proposer strategy.
+
+    This is a convenience wrapper around :func:`plot_metric_by_audit_prob` that
+    groups by the ``"strategy"`` field.  When *lie_penalty* is provided only
+    rows matching that penalty are included; otherwise all rows are used and
+    values are averaged across lie penalties for each
+    ``(strategy, audit_prob)`` pair.
+
+    Parameters
+    ----------
+    rows:
+        Sweep result dicts containing at least ``audit_prob``, ``strategy``,
+        and *metric*.
+    metric:
+        Key of the metric to plot on the y-axis.
+    output_path:
+        Destination path for the saved PNG image.
+    lie_penalty:
+        If provided, filter rows to this ``lie_penalty`` value before plotting.
+
+    Raises
+    ------
+    ValueError
+        Propagated from :func:`plot_metric_by_audit_prob` when *rows* is empty
+        or required fields are missing.
+    """
+    if lie_penalty is not None:
+        rows = [r for r in rows if r.get("lie_penalty") == lie_penalty]
+    plot_metric_by_audit_prob(rows, metric, output_path, group_by="strategy")
+
+
+def save_aggregate_csv(rows: list[dict], output_path: str | Path) -> None:
+    """Write an aggregate CSV grouped by ``(strategy, audit_prob, lie_penalty)``.
+
+    Each output row represents one cell and contains ``n_runs`` (the number of
+    rows—typically seeds—aggregated into it) plus the mean of the key research
+    metrics.  Rows are sorted by ``(strategy, audit_prob, lie_penalty)``.
+
+    An empty *rows* list writes an empty file without raising.
+
+    Parameters
+    ----------
+    rows:
+        Sweep result dicts as returned by
+        :func:`~ultimatum_arena.runners.llm_sweep.run_llm_strategy_sweep`.
+    output_path:
+        Destination path for the CSV file.  Parent directories are created
+        if they do not exist.
+    """
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not rows:
+        output_path.write_text("", encoding="utf-8")
+        return
+
+    groups: dict[tuple, list[dict]] = {}
+    for row in rows:
+        key = (
+            row.get("strategy"),
+            row.get("audit_prob"),
+            row.get("lie_penalty"),
+        )
+        groups.setdefault(key, []).append(row)
+
+    out_rows: list[dict] = []
+    for (strategy, audit_prob, lie_penalty), group in sorted(
+        groups.items(),
+        key=lambda kv: (str(kv[0][0]), float(kv[0][1] or 0), float(kv[0][2] or 0)),
+    ):
+        agg: dict = {
+            "strategy": strategy,
+            "audit_prob": audit_prob,
+            "lie_penalty": lie_penalty,
+            "n_runs": len(group),
+        }
+        for m in _AGGREGATE_METRICS:
+            vals = [r[m] for r in group if m in r]
+            agg[m] = sum(vals) / len(vals) if vals else None
+        out_rows.append(agg)
+
+    fieldnames = ["strategy", "audit_prob", "lie_penalty", "n_runs"] + _AGGREGATE_METRICS
+
+    with output_path.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(out_rows)

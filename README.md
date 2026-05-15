@@ -131,6 +131,48 @@ Invoke-RestMethod http://localhost:11434/api/tags
 
 > **Note:** Gemma 3 may occasionally return unparsable JSON. If this happens the script exits with a clear error. Rerun or improve the prompts in `ultimatum_arena/llm/prompts.py`.
 
+---
+
+## Research Sweep (Phase 4)
+
+The research sweep runs a full grid of strategies × audit probabilities × lie penalties × seeds and produces analysis-ready outputs.
+
+```bash
+# Quick smoke test: 2 strategies × 3 audit probs × 2 penalties × 1 seed = 6 runs, 10 rounds each
+python scripts/run_gemma3_research_sweep.py --preset smoke
+
+# Full research sweep: 3 strategies × 6 audit probs × 4 penalties × 3 seeds = 216 runs, 50 rounds each
+python scripts/run_gemma3_research_sweep.py --preset research
+
+# Override individual dimensions
+python scripts/run_gemma3_research_sweep.py --preset smoke --rounds 20 --seeds 1 2 3
+python scripts/run_gemma3_research_sweep.py --preset smoke --strategies honest_fair deceptive --audit-probs 0.0 0.5 1.0
+
+# See all options
+python scripts/run_gemma3_research_sweep.py --help
+```
+
+Outputs are written to `outputs/gemma3_research/YYYYMMDD_HHMMSS/`:
+
+| Path | Contents |
+|---|---|
+| `runs/<run>.jsonl` | Per-round logs for each cell |
+| `runs/<run>_summary.json` | Per-cell metrics |
+| `combined_summary.csv` | One row per (strategy, audit_prob, lie_penalty, seed) |
+| `aggregate_by_strategy_audit_penalty.csv` | Means across seeds, grouped by (strategy, audit_prob, lie_penalty) |
+| `manifest.json` | Sweep configuration |
+| `plots/deception_rate_by_audit_prob.png` | Deception rate vs audit probability, lines by strategy |
+| `plots/proposer_mean_payoff_by_audit_prob.png` | Proposer payoff vs audit probability |
+| `plots/acceptance_rate_by_audit_prob.png` | Acceptance rate vs audit probability |
+| `plots/lie_detection_rate_among_lies_by_audit_prob.png` | Lie detection rate vs audit probability |
+
+### Interpreting results
+
+- **`deceptive` strategy** should show high `deception_rate` at low audit probabilities that falls as `audit_prob` and `lie_penalty` increase.
+- **`lie_detection_rate_among_lies`** should track closely with `audit_prob` (audits are the only detection mechanism).
+- **`honest_fair`** and **`self_interested`** should show near-zero `deception_rate` regardless of penalty regime.
+- Single-run results are noisy; use the aggregate CSV to compare across seeds.
+
 
 ---
 
@@ -149,7 +191,7 @@ results, metrics = run_experiment(
     output_dir="outputs/myrun", experiment_name="demo",
 )
 
-# Parameter sweep
+# Heuristic parameter sweep
 rows = run_audit_penalty_sweep(
     audit_probabilities=[0.0, 0.25, 0.5, 1.0],
     lie_penalties=[0.0, 10.0, 50.0],
@@ -160,8 +202,31 @@ rows = run_audit_penalty_sweep(
     output_dir="outputs/sweep",
 )
 
-# Plot a metric from sweep rows
+# LLM strategy sweep (Ollama/Gemma or any LLMClient)
+from ultimatum_arena.runners import run_llm_strategy_sweep
+from ultimatum_arena.llm.ollama_client import OllamaLLMClient
+
+rows = run_llm_strategy_sweep(
+    proposer_client_factory=lambda: OllamaLLMClient(model="gemma3"),
+    responder_client_factory=lambda: OllamaLLMClient(model="gemma3"),
+    strategies=["honest_fair", "self_interested", "deceptive"],
+    audit_probabilities=[0.0, 0.25, 0.5, 1.0],
+    lie_penalties=[0.0, 25.0],
+    seeds=[1, 2, 3],
+    n_rounds=50,
+    output_dir="outputs/llm_sweep",
+)
+
+# Plot and aggregate analysis
+from ultimatum_arena.analysis import (
+    plot_metric_by_audit_prob,
+    plot_metric_by_audit_prob_for_strategies,
+    save_aggregate_csv,
+)
+
 plot_metric_by_audit_prob(rows, "deception_rate", "outputs/plots/deception.png")
+plot_metric_by_audit_prob_for_strategies(rows, "deception_rate", "outputs/plots/deception_by_strategy.png")
+save_aggregate_csv(rows, "outputs/aggregate.csv")
 ```
 
 ---
@@ -217,11 +282,11 @@ plot_metric_by_audit_prob(rows, "deception_rate", "outputs/plots/deception.png")
 | Phase | Status | Description |
 |---|---|---|
 | **Phase 1** | Complete | Hidden Pie Audit game, heuristic agents, sweep runner, CSV/JSON output, matplotlib plots |
-| **Phase 2** | Complete foundation | LLM agent infrastructure: `LLMClient` protocol, `FakeLLMClient` for tests, prompt builders, response parser, `LLMProposer`/`LLMResponder` |
-| **Phase 3A** | Complete local provider | Local Ollama/Gemma support through `OllamaLLMClient`; no API keys required |
+| **Phase 2** | Complete | LLM agent infrastructure: `LLMClient` protocol, `FakeLLMClient` for tests, prompt builders, response parser, `LLMProposer`/`LLMResponder` |
+| **Phase 3A** | Complete | Local Ollama/Gemma support through `OllamaLLMClient`; no API keys required |
 | **Phase 3B** | Planned | Paid provider clients such as OpenAI-compatible and Anthropic-compatible clients |
-| **Phase 4** | Planned | Multi-model comparison sweeps; head-to-head proposer vs responder matchups |
-| **Phase 5** | Planned | Prompt-attack / reputation league; adversarial prompting benchmarks |
+| **Phase 4** | Starting | Systematic multi-strategy research sweeps: `run_llm_strategy_sweep`, aggregate CSV, strategy plots |
+| **Phase 5** | Planned | Multi-model comparison; head-to-head proposer vs responder matchups; adversarial prompting benchmarks |
 
 ---
 
@@ -232,15 +297,21 @@ ultimatum_arena/
   agents/       BaseProposer, BaseResponder, heuristic agents, LLM agents
   envs/         HiddenPieAuditEnv
   schemas/      ProposerAction, ResponderAction, RoundResult, observations
-  runners/      run_experiment, run_audit_penalty_sweep, save_sweep_csv
-  analysis/     compute_metrics, plot_metric_by_audit_prob
+  runners/      run_experiment, run_audit_penalty_sweep, run_llm_strategy_sweep, save_sweep_csv
+  analysis/     compute_metrics, plot_metric_by_audit_prob, plot_metric_by_audit_prob_for_strategies,
+                save_aggregate_csv
   storage/      JSONL + JSON persistence helpers
   llm/          LLMClient protocol, FakeLLMClient, OllamaLLMClient, prompts, parser
 scripts/
-  run_hidden_pie_demo.py   Phase 1 end-to-end demo
-  run_gemma3_hidden_pie_demo.py
-  run_gemma3_strategy_set.ps1
-tests/                     unit tests (2 live-Ollama integration tests skipped by default)
+  run_hidden_pie_demo.py            Phase 1 end-to-end demo (heuristic agents)
+  run_gemma3_hidden_pie_demo.py     Single-run Gemma 3 demo
+  run_gemma3_strategy_set.ps1       Sequential strategy comparison (PowerShell)
+  run_gemma3_research_sweep.py      Phase 4 full research sweep with presets
+outputs/                           Runtime artifacts (gitignored)
+  hidden_pie_demo/                 Heuristic demo outputs
+  gemma3_demo/                     Single Gemma demo outputs
+  gemma3_research/                 Research sweep outputs
+tests/                             Unit tests (2 live-Ollama integration tests skipped by default)
 ```
 
 ---

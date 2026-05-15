@@ -32,6 +32,11 @@ python scripts/run_gemma3_hidden_pie_demo.py
 # Run all three Gemma proposer strategies sequentially
 powershell -ExecutionPolicy Bypass -File scripts/run_gemma3_strategy_set.ps1
 
+# Phase 4 research sweep (requires Ollama + gemma3)
+python scripts/run_gemma3_research_sweep.py --preset smoke
+python scripts/run_gemma3_research_sweep.py --preset research
+python scripts/run_gemma3_research_sweep.py --help
+
 # Optional live Ollama tests, requires Ollama running and gemma3 installed
 $env:RUN_OLLAMA_TESTS="1"
 python -m pytest tests/test_ollama_client.py
@@ -41,9 +46,11 @@ python -m pytest tests/test_ollama_client.py
 
 Phase 1 is complete: Hidden Pie Ultimatum with Audit works as a heuristic-agent research MVP with metrics, sweeps, JSONL/JSON outputs, CSV output, plots, a runnable demo script, and documentation.
 
-Phase 2 foundations are present: the repository has an LLM layer with a provider-agnostic `LLMClient` protocol, `FakeLLMClient`, LLM-backed agents, prompt builders, JSON parsing, and raw LLM observability metadata in round logs.
+Phase 2 is complete: the repository has an LLM layer with a provider-agnostic `LLMClient` protocol, `FakeLLMClient`, LLM-backed agents, prompt builders, JSON parsing, and raw LLM observability metadata in round logs.
 
-Phase 3A local-provider support is present: `OllamaLLMClient` runs Gemma 3 locally through Ollama. Paid provider clients and API key handling are not implemented yet.
+Phase 3A is complete: `OllamaLLMClient` runs Gemma 3 locally through Ollama. Paid provider clients and API key handling are not implemented yet.
+
+Phase 4 is starting: `run_llm_strategy_sweep()` runs a full research grid (strategies × audit_probabilities × lie_penalties × seeds) with LLM agents, writes per-run logs, a combined CSV, an aggregate CSV (means across seeds), a manifest, and strategy plots. `scripts/run_gemma3_research_sweep.py` is the CLI entry point with `--preset smoke` and `--preset research`.
 
 Local Gemma 3 setup has been verified with Ollama: `gemma3:latest` and `gemma3:4b` are available locally, and `RUN_OLLAMA_TESTS=1 python -m pytest tests/test_ollama_client.py` passes when Ollama is running.
 
@@ -80,12 +87,14 @@ Do not rewrite these interfaces. Future agents should subclass `BaseProposer` or
 - `ultimatum_arena/agents/responders.py`: `ThresholdResponder`, `SuspiciousResponder`.
 - `ultimatum_arena/agents/__init__.py`: public agent exports, including `LLMProposer` and `LLMResponder`.
 - `ultimatum_arena/runners/basic.py`: `run_experiment()` for N-round runs. It optionally writes `{experiment_name}.jsonl` and `{experiment_name}_summary.json`.
-- `ultimatum_arena/runners/sweep.py`: `run_audit_penalty_sweep()` and `save_sweep_csv()`.
+- `ultimatum_arena/runners/sweep.py`: `run_audit_penalty_sweep()` and `save_sweep_csv()` for heuristic agent grids.
+- `ultimatum_arena/runners/llm_sweep.py`: `run_llm_strategy_sweep()` — sweeps strategies × audit_probabilities × lie_penalties × seeds with LLM agents; writes `runs/`, `combined_summary.csv`, and `manifest.json` when `output_dir` is provided. The aggregate CSV and plots are produced by `scripts/run_gemma3_research_sweep.py`, not by the runner itself.
 - `ultimatum_arena/analysis/metrics.py`: pure `compute_metrics(list[RoundResult]) -> dict`.
-- `ultimatum_arena/analysis/plots.py`: `plot_metric_by_audit_prob()` using matplotlib Agg.
+- `ultimatum_arena/analysis/plots.py`: `plot_metric_by_audit_prob()` (group by any field), `plot_metric_by_audit_prob_for_strategies()` (group by strategy, optional lie_penalty filter), `save_aggregate_csv()` (aggregate means by strategy/audit/penalty).
 - `ultimatum_arena/storage/jsonl.py`: JSONL/JSON persistence helpers.
 - `ultimatum_arena/llm/`: provider-agnostic LLM layer, fake client, parser, prompts, LLM agents, and local Ollama client.
 - `scripts/run_gemma3_strategy_set.ps1`: sequentially runs the Gemma demo for `honest_fair`, `self_interested`, and `deceptive` proposer strategies.
+- `scripts/run_gemma3_research_sweep.py`: Phase 4 CLI — presets `smoke` and `research`, all dimensions overridable; writes full output tree including plots and aggregate CSV.
 
 ## Phase 1 Demo
 
@@ -235,25 +244,32 @@ Recent Gemma strategy runs show the expected Hidden Pie + Audit mechanism:
 
 ## Phase Boundaries
 
-Phase 1:
+Phase 1 (complete):
 
 - Complete heuristic research MVP.
 - No API keys.
 - No external services.
 - No real LLM calls in the default demo.
 
-Phase 2:
+Phase 2 (complete):
 
 - Provider-agnostic LLM architecture.
 - Fake client first.
 - Prompt builders and robust JSON parsing.
 - LLM proposer/responder agents with raw prompt/response metadata.
 
-Phase 3A:
+Phase 3A (complete):
 
 - Local Ollama/Gemma 3 support.
 - No API keys.
 - Gemma proposer strategy profiles and sequential local strategy runner.
+
+Phase 4 (starting):
+
+- `run_llm_strategy_sweep()` for systematic multi-strategy experiments.
+- `run_gemma3_research_sweep.py` CLI with smoke and research presets.
+- Aggregate CSV and strategy plots from sweep outputs.
+- No paid providers. No async. No database.
 
 Later provider phases:
 
