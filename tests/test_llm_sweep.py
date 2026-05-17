@@ -336,6 +336,23 @@ class TestRunLLMStrategySweepOutput:
         manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
         assert manifest["pie_range"] == [60.0, 140.0]
 
+    def test_manifest_extra_fields_written(self, tmp_path):
+        run_llm_strategy_sweep(
+            proposer_client_factory=_proposer_factory,
+            responder_client_factory=_responder_factory,
+            strategies=["honest_fair"],
+            audit_probabilities=[0.0],
+            lie_penalties=[0.0],
+            seeds=[1],
+            n_rounds=2,
+            output_dir=tmp_path,
+            manifest_extra={"model": "fake", "preset": "unit", "run_id": "test-123"},
+        )
+        manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["model"] == "fake"
+        assert manifest["preset"] == "unit"
+        assert manifest["run_id"] == "test-123"
+
 
 # ---------------------------------------------------------------------------
 # Factory call counting

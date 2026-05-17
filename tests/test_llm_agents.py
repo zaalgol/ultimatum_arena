@@ -852,3 +852,58 @@ class TestStrategyPromptContent:
         """VALID_STRATEGIES must be consistent with the hint dict."""
         from ultimatum_arena.llm.prompts import _STRATEGY_HINTS
         assert VALID_STRATEGIES == frozenset(_STRATEGY_HINTS.keys())
+
+
+# ---------------------------------------------------------------------------
+# risk_aware strategy
+# ---------------------------------------------------------------------------
+
+class TestRiskAwareStrategy:
+    def test_risk_aware_in_valid_strategies(self):
+        assert "risk_aware" in VALID_STRATEGIES
+
+    def test_llm_proposer_accepts_risk_aware(self):
+        LLMProposer(FakeLLMClient(), strategy="risk_aware")  # must not raise
+
+    def test_risk_aware_prompt_contains_header(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="risk_aware")
+        assert "RISK-AWARE" in prompt
+
+    def test_risk_aware_prompt_contains_expected_audit_cost(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="risk_aware")
+        assert "expected audit cost" in prompt.lower()
+
+    def test_risk_aware_prompt_mentions_audit(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="risk_aware")
+        assert "audit" in prompt.lower()
+
+    def test_risk_aware_prompt_mentions_penalty(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="risk_aware")
+        assert "penalty" in prompt.lower()
+
+    def test_risk_aware_prompt_allows_honest_behavior(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="risk_aware")
+        lower = prompt.lower()
+        assert "honest" in lower or "report honestly" in lower
+
+    def test_risk_aware_prompt_allows_underclaiming(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="risk_aware")
+        lower = prompt.lower()
+        assert "underclaim" in lower or "underclaiming" in lower
+
+    def test_risk_aware_prompt_distinct_from_all_other_strategies(self):
+        obs = _proposer_obs()
+        risk_aware_prompt = build_proposer_prompt(obs, strategy="risk_aware")
+        for other in ("honest_fair", "self_interested", "deceptive"):
+            assert risk_aware_prompt != build_proposer_prompt(obs, strategy=other)
+
+    def test_risk_aware_reaches_client(self):
+        client = FakeLLMClient()
+        proposer = LLMProposer(client, strategy="risk_aware")
+        proposer.act(_proposer_obs())
+        assert "RISK-AWARE" in client.calls[0]
+
+    def test_risk_aware_prompt_no_placeholder_warning(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="risk_aware")
+        lower = prompt.lower()
+        assert "do not" in lower or "don't" in lower or "placeholder" in lower

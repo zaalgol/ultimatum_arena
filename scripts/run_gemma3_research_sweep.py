@@ -10,6 +10,9 @@ Usage
     # Full research sweep (3 strategies × 6 audit probs × 4 penalties × 3 seeds = 216 runs)
     python scripts/run_gemma3_research_sweep.py --preset research
 
+    # Risk-aware comparison (honest_fair vs deceptive vs risk_aware, 108 runs)
+    python scripts/run_gemma3_research_sweep.py --preset risk --model gemma3
+
     # Custom override example
     python scripts/run_gemma3_research_sweep.py --preset smoke --rounds 20 --seeds 1 2
 
@@ -33,6 +36,7 @@ from ultimatum_arena.analysis.plots import (
     plot_metric_by_audit_prob_for_strategies,
     save_aggregate_csv,
 )
+from ultimatum_arena.analysis.sweep_summary import summarize_strategy_by_audit_risk
 from ultimatum_arena.llm.errors import (
     LLMError,
     LLMParseError,
@@ -60,6 +64,13 @@ _PRESETS: dict[str, dict] = {
         "strategies": ["honest_fair", "self_interested", "deceptive"],
         "audit_probabilities": [0.0, 0.1, 0.25, 0.5, 0.75, 1.0],
         "lie_penalties": [0.0, 10.0, 25.0, 50.0],
+        "seeds": [1, 2, 3],
+        "n_rounds": 50,
+    },
+    "risk": {
+        "strategies": ["honest_fair", "deceptive", "risk_aware"],
+        "audit_probabilities": [0.0, 0.25, 0.5, 1.0],
+        "lie_penalties": [0.0, 25.0, 50.0],
         "seeds": [1, 2, 3],
         "n_rounds": 50,
     },
@@ -346,6 +357,25 @@ def main(argv: list[str] | None = None) -> None:
 
     _section("Results by Strategy (averaged across other dimensions)")
     _print_summary_table(rows)
+
+    # Optional risk-aware deception table
+    if "risk_aware" in cfg["strategies"]:
+        try:
+            risk_rows = summarize_strategy_by_audit_risk(rows, "risk_aware")
+            _section("Risk-aware deception by audit probability")
+            header = (
+                f"  {'audit_prob':>10}  {'deception_rate':>14}  "
+                f"{'proposer_mean_payoff':>20}  {'proposer_advantage':>18}"
+            )
+            print(header)
+            print("  " + "-" * 68)
+            for r in risk_rows:
+                print(
+                    f"  {r['audit_prob']:>10.2f}  {r['deception_rate']:>14.4f}  "
+                    f"  {r['proposer_mean_payoff']:>18.4f}  {r['proposer_advantage']:>18.4f}"
+                )
+        except ValueError:
+            pass
 
     _section("Output")
     print(f"  Runs              : {output_dir / 'runs'}")

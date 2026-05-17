@@ -1,106 +1,78 @@
-# Stage 1 Prompt: Audit Research-Grade Sweep Design
+# Stage 1 Prompt: Design Audit for Risk-Aware Proposer Strategy
 
 You are working on the Python project `ultimatum_arena`.
 
 Goal:
-Prepare the implementation of research-grade Hidden Pie + Audit experiments for local Gemma/Ollama agents. This stage is an audit/design stage only.
+Plan the next Hidden Pie + Audit research step: add a fourth LLM proposer strategy called `risk_aware`.
 
-Do not write implementation code in this stage.
+This stage is design/audit only. Do not write implementation code in this stage.
 
 Context:
-The project already has:
+The project already supports:
 - `HiddenPieAuditEnv`
-- heuristic agents and LLM agents
-- `LLMProposer(strategy=...)` with strategies:
+- `LLMProposer(client, strategy=...)`
+- proposer strategies:
   - `honest_fair`
   - `self_interested`
   - `deceptive`
 - `LLMResponder`
 - `OllamaLLMClient`
 - `FakeLLMClient`
-- `run_experiment()`
-- heuristic sweep support in `ultimatum_arena/runners/sweep.py`
-- metrics, plots, JSONL, summary JSON, and demo scripts
-- local Gemma demo scripts:
-  - `scripts/run_gemma3_hidden_pie_demo.py`
-  - `scripts/run_gemma3_strategy_set.ps1`
+- `run_llm_strategy_sweep()`
+- `scripts/run_gemma3_research_sweep.py`
+- research outputs under `outputs/gemma3_research/<timestamp>/`
 
-Research goal:
-Move from manual demo runs to repeatable experiment suites that compare proposer strategies across audit probabilities, penalties, and seeds.
+Current research finding:
+The `deceptive` strategy is intentionally instructed to lie, so it keeps lying even when audit probability and lie penalty are high. That is useful for payoff analysis, but it does not test whether Gemma can adaptively decide whether deception is worth the risk.
+
+Next research question:
+Does Gemma reduce deception when expected audit cost rises?
+
+Proposed new strategy:
+
+```text
+risk_aware
+```
+
+Behavior:
+- sees true pie, audit probability, and lie penalty
+- can choose honest reporting or deceptive underclaiming
+- should compare deception benefit against expected audit cost
+- should lie more when audit probability/penalty is low
+- should become more honest when audit probability/penalty is high
+- must still output exactly the same JSON action schema:
+  `{"claimed_pie": <number>, "offer": <number>, "public_message": "<string>"}`
 
 Files to inspect:
-- `ultimatum_arena/runners/basic.py`
-- `ultimatum_arena/runners/sweep.py`
-- `ultimatum_arena/analysis/metrics.py`
-- `ultimatum_arena/analysis/plots.py`
+- `ultimatum_arena/llm/prompts.py`
 - `ultimatum_arena/llm/agents.py`
-- `ultimatum_arena/llm/client.py`
-- `ultimatum_arena/llm/ollama_client.py`
-- `scripts/run_gemma3_hidden_pie_demo.py`
-- `scripts/run_gemma3_strategy_set.ps1`
-- `tests/test_sweep.py`
 - `tests/test_llm_agents.py`
+- `ultimatum_arena/runners/llm_sweep.py`
+- `scripts/run_gemma3_research_sweep.py`
+- `tests/test_llm_sweep.py`
 - `README.md`
 - `CLAUDE.md`
-
-Expected design:
-We want a reusable LLM strategy sweep, probably in:
-
-```text
-ultimatum_arena/runners/llm_sweep.py
-```
-
-The sweep should run combinations of:
-- proposer strategies: `honest_fair`, `self_interested`, `deceptive`
-- audit probabilities
-- lie penalties
-- seeds
-- rounds
-
-The sweep should use:
-- fresh `HiddenPieAuditEnv` per configuration
-- fresh proposer and responder clients per run
-- `LLMProposer(client=..., strategy=...)`
-- `LLMResponder(client=...)`
-- existing `run_experiment()`
-- existing metrics
-
-Desired outputs when `output_dir` is provided:
-
-```text
-outputs/gemma3_research/YYYYMMDD_HHMMSS/
-  runs/
-    <run_name>.jsonl
-    <run_name>_summary.json
-  combined_summary.csv
-  manifest.json
-  plots/    # added in a later stage
-```
-
-Design requirements:
-- Use standard library `csv` and `json`.
-- No pandas.
-- No async/concurrency yet.
-- No paid API providers.
-- No OpenAI/Anthropic/Gemini API clients.
-- No database or experiment tracking framework.
-- Tests must use `FakeLLMClient`, not real Ollama.
-- Preserve existing public interfaces unless there is a strong reason.
-- Keep Phase 1 heuristic sweep behavior unchanged.
+- `AGENTS.md`
 
 Your task:
-1. Inspect the files listed above.
-2. Identify the smallest implementation path.
-3. Write a concise design note to the terminal or your final response. Do not edit code.
-4. Include:
-   - recommended function signature for `run_llm_strategy_sweep`
-   - recommended row fields for `combined_summary.csv`
-   - output directory layout
-   - test plan
-   - risks or open questions
+1. Inspect the files above.
+2. Confirm the smallest implementation path.
+3. Do not edit files.
+4. In your final response, provide:
+   - exact files to edit in Stage 2
+   - expected prompt wording principles for `risk_aware`
+   - tests needed
+   - whether sweep presets should include `risk_aware` by default or only in a new preset
+
+Constraints:
+- Do not add paid providers.
+- Do not add OpenAI, Anthropic, Gemini API, or cloud clients.
+- Do not add async/concurrency.
+- Do not change environment rules.
+- Do not change action/result schemas unless absolutely necessary.
+- Keep current strategies working.
 
 Definition of done:
-- No code files changed.
-- You have a clear implementation plan for the next stage.
-- You explicitly confirm the plan does not require real API keys or paid providers.
+- No code changed.
+- There is a clear plan for implementing `risk_aware`.
 

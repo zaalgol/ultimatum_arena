@@ -1,97 +1,72 @@
-﻿# Code Review: Research-Grade Gemma Sweep Implementation
+﻿# Code Review: Risk-Aware Strategy Implementation
 
 ## Findings
 
-### P2: Strategy plots average away the lie-penalty dimension
-
-Files:
-- `scripts/run_gemma3_research_sweep.py:306-320`
-- `ultimatum_arena/analysis/plots.py:127-162`
-
-The research sweep varies both `audit_prob` and `lie_penalty`, but the script generates only one plot per metric by calling `plot_metric_by_audit_prob_for_strategies(rows, metric, ...)` without a `lie_penalty` filter. The helper then groups only by `strategy`, so duplicate `(strategy, audit_prob)` cells are averaged across all lie penalties and seeds.
-
-That makes the key research question harder to answer and can produce misleading plots. For example, deception at `lie_penalty=0` and `lie_penalty=50` may be collapsed into one line, hiding exactly the penalty effect the sweep is designed to measure.
-
-Recommendation:
-Generate plots per lie penalty, for example:
-
-```text
-plots/deception_rate_by_audit_prob_penalty_0.png
-plots/deception_rate_by_audit_prob_penalty_10.png
-plots/deception_rate_by_audit_prob_penalty_25.png
-plots/deception_rate_by_audit_prob_penalty_50.png
-```
-
-or include both strategy and lie penalty in the plotted group label. The aggregate CSV already preserves `(strategy, audit_prob, lie_penalty)`, so the plot layer should preserve it too.
-
-### P2: Manifest is missing model, temperature, preset, and run metadata
+### P2: `summarize_strategy_by_audit_risk()` fails on CSV-loaded sweep rows
 
 File:
-- `ultimatum_arena/runners/llm_sweep.py:156-166`
+- `ultimatum_arena/analysis/sweep_summary.py:53-79`
 
-`manifest.json` records sweep dimensions, but it does not record the LLM model, temperature, selected CLI preset, script entry point, or run timestamp. These values matter for reproducing research runs, especially because `combined_summary.csv` may be moved or filtered independently later.
+The new helper works for in-memory rows returned directly by `run_llm_strategy_sweep()`, but it fails for rows loaded from `combined_summary.csv` with `csv.DictReader` / `Import-Csv`, because all numeric values are strings. This is a likely workflow for this project: the research sweep writes CSVs specifically for later analysis.
 
-The combined CSV rows include `model` and `temperature`, but the manifest should still describe the run as a whole. Right now a reader opening only `manifest.json` cannot tell whether a run used `gemma3`, another Ollama model, or which preset created it.
+Example failure:
 
-Recommendation:
-Allow `run_llm_strategy_sweep()` to accept optional `manifest_extra: dict | None`, or have `scripts/run_gemma3_research_sweep.py` update/write the manifest after the sweep. Include at least:
+```python
+from ultimatum_arena.analysis import summarize_strategy_by_audit_risk
 
-```text
-model
-temperature
-preset
-run_id
-created_at
-script
-output_dir
+rows = [{
+    "strategy": "risk_aware",
+    "audit_prob": "0.0",
+    "lie_penalty": "25.0",
+    "deception_rate": "0.8",
+    "proposer_mean_payoff": "10.0",
+    "proposer_advantage": "1.0",
+    "lie_detection_rate_among_lies": "0.0",
+}]
+
+summarize_strategy_by_audit_risk(rows, "risk_aware")
+# TypeError: unsupported operand type(s) for +: 'int' and 'str'
 ```
 
-### P2: Plot generation failures are silently swallowed
-
-File:
-- `scripts/run_gemma3_research_sweep.py:314-322`
-
-The script catches `ValueError` and `KeyError` during plot generation and silently continues. It then prints the plots directory as if plots were produced. This can hide real analysis-output failures, such as a metric typo, missing field, malformed rows, or a future plotting regression.
+There is also an exact-match issue for penalty filtering: `lie_penalty=25.0` will not match a CSV row whose value is `'25.0'`.
 
 Recommendation:
-Do not silently pass. Either:
+Convert `audit_prob`, `lie_penalty`, and metric values with `float(...)` inside the helper, similar to the existing plotting code. Keep output `audit_prob` numeric and sort numerically. Add tests with CSV-style string rows and a float `lie_penalty` filter.
 
-- let the exception fail the script, or
-- collect skipped plot errors and print a warning listing the metric and error.
-
-For research workflows, silent missing plots are worse than a loud failure.
-
-### P3: CLAUDE.md overstates what `run_llm_strategy_sweep()` writes
+### P3: CLI help epilog does not mention the new `risk` preset
 
 File:
-- `CLAUDE.md:91`
+- `scripts/run_gemma3_research_sweep.py:5-18`
 
-`CLAUDE.md` says `ultimatum_arena/runners/llm_sweep.py` writes `aggregate_by_strategy_audit_penalty.csv` and `plots/` when `output_dir` is provided. The actual runner writes only:
+The argparse choices correctly include `risk`, but the long help text / epilog still lists only the smoke and full research examples. Since users discover workflows via `--help`, add an example such as:
 
-```text
-runs/
-combined_summary.csv
-manifest.json
+```bash
+python scripts/run_gemma3_research_sweep.py --preset risk --model gemma3
 ```
 
-The aggregate CSV and plots are created by `scripts/run_gemma3_research_sweep.py`, not by `run_llm_strategy_sweep()` itself.
+### P3: Manifest-extra behavior is not directly tested
+
+File:
+- `ultimatum_arena/runners/llm_sweep.py:68,175-188`
+
+`manifest_extra` is a useful addition and is used by the CLI, but there is no direct test asserting that extra manifest fields are written. This is not currently broken, but a small regression test would protect reproducibility metadata (`model`, `temperature`, `preset`, `run_id`, etc.).
 
 Recommendation:
-Update the doc line so future agents do not assume the library runner creates plots/aggregate files directly.
+Add a `tests/test_llm_sweep.py` case that calls `run_llm_strategy_sweep(..., manifest_extra={"model": "fake", "preset": "unit"})` and asserts those fields appear in `manifest.json`.
 
 ## Tests Run
 
 ```text
-python -m pytest tests/test_llm_sweep.py tests/test_plots.py
-# 71 passed
+python -m pytest tests/test_llm_agents.py tests/test_research_sweep_script.py tests/test_sweep_summary.py
+# 162 passed
 
 python scripts\run_gemma3_research_sweep.py --help
-# help command works
+# help command works; risk appears in choices
 
 python -m pytest
-# 314 passed, 2 skipped
+# 358 passed, 2 skipped
 ```
 
 ## Summary
 
-The core sweep implementation is sound: it creates fresh clients/envs per run, writes per-run logs, produces a combined CSV, and passes the full suite. The main fixes needed are around research-output fidelity and reproducibility: preserve the penalty dimension in plots, enrich the manifest, avoid silent plot failures, and correct the CLAUDE.md runner description.
+The core `risk_aware` implementation looks sound: the strategy is registered, prompt coverage is tested, the `risk` preset is present, and the full suite passes. The main fix needed is making the new analysis helper robust to CSV-loaded rows, because that is the natural research workflow after long Gemma sweeps. The other two items are small polish/protection tasks.

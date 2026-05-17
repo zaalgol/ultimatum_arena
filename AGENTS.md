@@ -32,6 +32,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run_gemma3_strategy_set.ps1
 # Phase 4 research sweep (requires Ollama + gemma3)
 python scripts/run_gemma3_research_sweep.py --preset smoke
 python scripts/run_gemma3_research_sweep.py --preset research
+python scripts/run_gemma3_research_sweep.py --preset risk --model gemma3
 python scripts/run_gemma3_research_sweep.py --help
 ```
 
@@ -63,9 +64,11 @@ HiddenPieAuditEnv.step()                  →  RoundResult
 
 **`analysis/plots.py`** — `plot_metric_by_audit_prob()`: PNG via matplotlib Agg, group by any field. `plot_metric_by_audit_prob_for_strategies()`: convenience wrapper grouping by strategy with optional lie_penalty filter. `save_aggregate_csv()`: means by (strategy, audit_prob, lie_penalty).
 
+**`analysis/sweep_summary.py`** — `summarize_strategy_by_audit_risk(rows, strategy, *, lie_penalty=None)`: pure helper; filters by strategy and optional penalty, groups by `audit_prob`, averages across seeds, returns rows sorted by `audit_prob`. Raises `ValueError` when no rows match.
+
 **`storage/jsonl.py`** — `append_result` / `load_results` (JSONL); `save_summary` (JSON).
 
-**`llm/`** — Phase 2/3 LLM layer: `LLMClient` protocol, `FakeLLMClient`, prompt builders, parser, `LLMProposer`/`LLMResponder`, `OllamaLLMClient`.
+**`llm/`** — Phase 2/3 LLM layer: `LLMClient` protocol, `FakeLLMClient`, prompt builders, parser, `LLMProposer`/`LLMResponder`, `OllamaLLMClient`. `LLMProposer` accepts four strategies: `honest_fair`, `self_interested`, `deceptive`, `risk_aware`.
 
 ## Phase boundaries
 
@@ -75,7 +78,10 @@ HiddenPieAuditEnv.step()                  →  RoundResult
 
 **Phase 3A** (complete): `OllamaLLMClient`, Gemma strategy profiles, `run_gemma3_hidden_pie_demo.py`, `run_gemma3_strategy_set.ps1`.
 
-**Phase 4** (starting): `run_llm_strategy_sweep()`, `run_gemma3_research_sweep.py`, aggregate CSV, strategy plots.
+**Phase 4** (in progress): `run_llm_strategy_sweep()`, `run_gemma3_research_sweep.py` with presets `smoke`, `research`, `risk`, aggregate CSV, strategy plots. Fourth LLM strategy `risk_aware` added; `summarize_strategy_by_audit_risk()` added for sweep analysis.
+- `deceptive` = instruction-driven deception (always lies regardless of audit risk).
+- `risk_aware` = incentive-sensitive deception (compares expected audit cost to deception surplus; should lie less when `audit_prob × lie_penalty` is high).
+- Compare these two strategies with `--preset risk` to test whether Gemma adapts deception to incentives.
 
 ## Extending with new agents
 

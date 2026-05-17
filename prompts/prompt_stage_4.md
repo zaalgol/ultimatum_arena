@@ -1,115 +1,89 @@
-# Stage 4 Prompt: Add Research Analysis Outputs And Plots
+# Stage 4 Prompt: Add Risk-Aware Analysis Checks
 
 You are working on the Python project `ultimatum_arena`.
 
 Goal:
-Make the Gemma research sweep outputs easier to analyze by adding stable summary tables and plots.
+Add lightweight analysis support for interpreting whether `risk_aware` responds to audit risk.
 
 Important constraints:
 - Do not add pandas.
-- Use existing `matplotlib` dependency and existing plotting style where possible.
-- Do not introduce heavy experiment tracking frameworks.
-- Do not rewrite existing metrics.
-- Keep plotting optional: if rows are empty, fail with a clear `ValueError`.
+- Do not add heavy statistics dependencies.
+- Do not overbuild analysis.
+- Keep functions pure and testable.
+- Do not require Ollama in tests.
 
 Files to inspect:
+- `ultimatum_arena/analysis/metrics.py`
 - `ultimatum_arena/analysis/plots.py`
-- `ultimatum_arena/runners/llm_sweep.py`
 - `scripts/run_gemma3_research_sweep.py`
 - `tests/test_plots.py`
-- `tests/test_llm_sweep.py`
+- `tests/test_metrics.py`
 
-Files to create or edit:
-- Edit `ultimatum_arena/analysis/plots.py`
-- Edit `scripts/run_gemma3_research_sweep.py`
-- Add or update tests in `tests/test_plots.py` and/or `tests/test_llm_sweep.py`
+Files to edit:
+- Prefer editing `ultimatum_arena/analysis/plots.py` only if the helper naturally belongs there.
+- Alternatively create a small new module:
+  - `ultimatum_arena/analysis/sweep_summary.py`
+- Update `ultimatum_arena/analysis/__init__.py` if adding stable public helpers.
+- Add tests.
 
-Desired analysis outputs:
-For each Gemma research sweep, create:
+Desired helper:
+Add a small pure helper that summarizes deception/payoff trends for one strategy across audit risk.
 
-```text
-outputs/gemma3_research/YYYYMMDD_HHMMSS/
-  combined_summary.csv
-  manifest.json
-  plots/
-    deception_rate_by_audit_prob.png
-    proposer_mean_payoff_by_audit_prob.png
-    acceptance_rate_by_audit_prob.png
-    lie_detection_rate_among_lies_by_audit_prob.png
-```
-
-Plot behavior:
-- X-axis: `audit_prob`
-- Y-axis: selected metric
-- Group lines by `strategy`
-- If multiple lie penalties are present, either:
-  - create one plot per lie penalty, with filenames like `deception_rate_by_audit_prob_penalty_25.png`, or
-  - group by both strategy and lie_penalty in the legend.
-- Prefer the simpler, readable approach.
-- Sort audit probabilities numerically.
-- Aggregate across seeds by taking the mean for each plotted cell.
-
-Recommended helper:
+Example:
 
 ```python
-def plot_metric_by_audit_prob_for_strategies(
+def summarize_strategy_by_audit_risk(
     rows: list[dict],
-    metric: str,
-    output_path: str | Path,
+    strategy: str,
     *,
     lie_penalty: float | None = None,
-) -> None:
+) -> list[dict]:
     ...
 ```
 
-or another small helper that fits the current code style.
-
-Table behavior:
-- Add an aggregated CSV if useful, for example:
-
-```text
-aggregate_by_strategy_audit_penalty.csv
-```
-
-Fields:
-- `strategy`
-- `audit_prob`
-- `lie_penalty`
-- `n_runs`
-- mean of key metrics:
-  - `acceptance_rate`
+Expected behavior:
+- Filter rows by strategy.
+- Optionally filter by lie penalty.
+- Group by `audit_prob`.
+- Average across seeds and penalties if not filtered.
+- Return rows sorted by `audit_prob`.
+- Include:
+  - `strategy`
+  - `audit_prob`
+  - `n_runs`
   - `deception_rate`
-  - `detected_lie_rate`
-  - `lie_detection_rate_among_lies`
   - `proposer_mean_payoff`
-  - `responder_mean_payoff`
   - `proposer_advantage`
+  - `lie_detection_rate_among_lies`
 
-Use standard library `csv`.
+This helper should make it easy to inspect whether `risk_aware` deception falls as audit risk increases.
 
 Tests:
-- plot function creates a PNG file for simple rows
-- aggregation handles multiple seeds
-- aggregation groups by strategy/audit/penalty
-- empty rows produce clear error
-- existing plot tests still pass
+- grouping by audit probability works
+- rows are sorted numerically
+- multiple seeds are averaged
+- lie penalty filter works
+- empty matching rows returns `[]` or raises `ValueError`; choose one behavior and document it
+- no Ollama required
+
+Optional script integration:
+If simple, have `scripts/run_gemma3_research_sweep.py` print an additional short table when `risk_aware` is present:
+
+```text
+Risk-aware deception by audit probability
+audit_prob deception_rate proposer_mean_payoff proposer_advantage
+...
+```
 
 Commands to run:
 
 ```bash
-python -m pytest tests/test_plots.py
-python -m pytest tests/test_llm_sweep.py
+python -m pytest tests/test_plots.py tests/test_metrics.py
 python -m pytest
 ```
 
-Optional manual command if Ollama is available:
-
-```powershell
-python scripts\run_gemma3_research_sweep.py --preset smoke --model gemma3
-```
-
 Definition of done:
-- Research sweep outputs include combined CSV, manifest JSON, aggregate CSV, and useful plots.
-- Plot/test behavior is deterministic.
+- There is a small tested way to summarize `risk_aware` behavior by audit risk.
+- Existing plots and sweep outputs still work.
 - Full test suite passes.
 

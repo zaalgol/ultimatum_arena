@@ -1,103 +1,97 @@
-# Stage 3 Prompt: Add Gemma Research Sweep CLI Script
+# Stage 3 Prompt: Add Risk-Aware Research Preset
 
 You are working on the Python project `ultimatum_arena`.
 
 Goal:
-Add a command-line script that runs the reusable LLM strategy sweep with local Gemma through Ollama.
+Add a focused research preset that compares `risk_aware` against existing proposer strategies without making every default run too expensive.
 
 Important constraints:
-- Use only local Ollama/Gemma.
-- No OpenAI, Anthropic, Gemini API, or paid provider clients.
-- No async/concurrency.
-- Do not rewrite the sweep runner from Stage 2.
-- Keep the script simple and explicit.
-- The script should fail clearly if Ollama is unavailable.
+- Do not remove existing `smoke` or `research` presets.
+- Do not make `smoke` slow.
+- Do not add paid providers.
+- Do not add async/concurrency.
+- Keep CLI behavior backward compatible.
 
 Files to inspect:
+- `scripts/run_gemma3_research_sweep.py`
 - `ultimatum_arena/runners/llm_sweep.py`
-- `scripts/run_gemma3_hidden_pie_demo.py`
-- `scripts/run_gemma3_strategy_set.ps1`
-- `ultimatum_arena/llm/ollama_client.py`
-- `ultimatum_arena/llm/errors.py`
-- `README.md`
-- `CLAUDE.md`
+- `tests/test_llm_sweep.py`
+- existing script tests if any
 
-Files to create or edit:
-- Create `scripts/run_gemma3_research_sweep.py`
-- Add tests only if the project already has a script-test pattern; otherwise keep script logic small and rely on runner tests
+Files to edit:
+- `scripts/run_gemma3_research_sweep.py`
+- Add tests only if the project already has script-level CLI tests or if you can add small pure argument-parsing tests without invoking Ollama.
 
-CLI behavior:
-The script should write outputs under:
+Preset design:
+Add a new preset:
 
 ```text
-outputs/gemma3_research/YYYYMMDD_HHMMSS/
+risk
 ```
 
-Support presets:
+Recommended dimensions:
+- strategies:
+  - `honest_fair`
+  - `deceptive`
+  - `risk_aware`
+- audit probabilities:
+  - `[0.0, 0.25, 0.5, 1.0]`
+- lie penalties:
+  - `[0.0, 25.0, 50.0]`
+- seeds:
+  - `[1, 2, 3]`
+- rounds:
+  - `50`
+
+Total runs:
+
+```text
+3 strategies * 4 audit probs * 3 penalties * 3 seeds = 108 runs
+```
+
+Expected CLI:
 
 ```bash
-python scripts/run_gemma3_research_sweep.py --preset smoke
-python scripts/run_gemma3_research_sweep.py --preset research
+python scripts/run_gemma3_research_sweep.py --preset risk --model gemma3
 ```
 
-Preset `smoke`:
-- strategies: `honest_fair`, `deceptive`
-- audit probabilities: `[0.0, 0.25, 1.0]`
-- lie penalties: `[0.0, 25.0]`
-- seeds: `[1]`
-- rounds: `10`
+Also ensure users can still override:
 
-Preset `research`:
-- strategies: `honest_fair`, `self_interested`, `deceptive`
-- audit probabilities: `[0.0, 0.1, 0.25, 0.5, 0.75, 1.0]`
-- lie penalties: `[0.0, 10.0, 25.0, 50.0]`
-- seeds: `[1, 2, 3]`
-- rounds: `50`
-
-Also support overrides:
-- `--model gemma3`
-- `--temperature 0.2`
-- `--rounds 20`
-- `--strategies honest_fair deceptive`
-- `--audit-probs 0.0 0.25 1.0`
-- `--lie-penalties 0 25 50`
-- `--seeds 1 2 3`
-- `--output-root outputs/gemma3_research`
-
-Expected terminal behavior:
-- print run ID and output directory
-- print selected preset and dimensions
-- print total number of runs before starting
-- print a concise final table with one row per configuration or at least a summary grouped by strategy
-- print path to `combined_summary.csv`
-- if Ollama is unavailable or model missing, print a clear error and exit nonzero
-
-Implementation notes:
-- Use `OllamaLLMClient(model=args.model, temperature=args.temperature)`.
-- Use fresh clients per run through factories:
-  - `proposer_client_factory=lambda: OllamaLLMClient(...)`
-  - `responder_client_factory=lambda: OllamaLLMClient(...)`
-- Use `run_llm_strategy_sweep(...)`.
-- Output root should be timestamped.
-- Do not run this script from tests against real Ollama.
-
-Manual smoke command after implementation:
-
-```powershell
-python scripts\run_gemma3_research_sweep.py --preset smoke --model gemma3
+```bash
+python scripts/run_gemma3_research_sweep.py --preset risk --rounds 10 --seeds 1
 ```
+
+Expected output:
+- same output layout as existing research sweep:
+  - `runs/`
+  - `combined_summary.csv`
+  - `aggregate_by_strategy_audit_penalty.csv`
+  - `manifest.json`
+  - `plots/`
+- manifest should record `preset = "risk"`.
+
+Tests:
+- If script argument parsing is testable without running Ollama, add tests that:
+  - `risk` is an accepted preset
+  - its dimensions match the design above
+  - overrides still work
+- If not adding tests, run help command and full existing tests.
 
 Commands to run:
 
 ```bash
-python -m pytest tests/test_llm_sweep.py
-python -m pytest
 python scripts/run_gemma3_research_sweep.py --help
+python -m pytest
+```
+
+Optional manual smoke, only if Ollama is available:
+
+```powershell
+python scripts\run_gemma3_research_sweep.py --preset risk --rounds 5 --seeds 1 --audit-probs 0.0 1.0 --lie-penalties 0 50 --model gemma3
 ```
 
 Definition of done:
-- The script parses arguments and shows useful help.
-- The script can run the smoke preset when Ollama is available.
-- Outputs are written under `outputs/gemma3_research/<timestamp>/`.
-- No paid providers or API keys are introduced.
+- `--preset risk` exists and is documented in CLI help.
+- Existing `smoke` and `research` presets still work.
+- Full test suite passes.
 

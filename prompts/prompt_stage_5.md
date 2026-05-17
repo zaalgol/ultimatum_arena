@@ -1,71 +1,50 @@
-# Stage 5 Prompt: Documentation, Cleanup, And Final Verification
+# Stage 5 Prompt: Documentation and Final Verification for Risk-Aware Strategy
 
 You are working on the Python project `ultimatum_arena`.
 
 Goal:
-Finalize the research-grade Hidden Pie + Audit experiment workflow documentation and run final verification.
+Update documentation and final checks after adding `risk_aware`.
 
 Important constraints:
-- Do not add new features in this stage unless they are tiny cleanup fixes required by tests or docs.
-- Do not add paid provider clients.
+- Do not add new features in this stage unless fixing a small doc/test issue.
+- Do not add paid providers.
 - Do not add async/concurrency.
 - Do not commit generated outputs.
-- Keep docs concise but accurate.
+- Keep docs concise and accurate.
 
 Files to inspect:
 - `README.md`
 - `CLAUDE.md`
 - `AGENTS.md`
-- `.gitignore`
 - `.claude/settings.local.json`
 - `scripts/run_gemma3_research_sweep.py`
-- `scripts/run_gemma3_strategy_set.ps1`
-- `ultimatum_arena/runners/llm_sweep.py`
-- `ultimatum_arena/analysis/plots.py`
+- `ultimatum_arena/llm/prompts.py`
+- `ultimatum_arena/analysis/plots.py` or any new analysis helper module
 
 Files to edit if needed:
 - `README.md`
 - `CLAUDE.md`
 - `AGENTS.md`
-- `.gitignore` only if new generated output paths are not ignored
 
-Documentation should cover:
-- Hidden Pie + Audit is complete as the first MVP.
-- Heuristic demo:
-  - `python scripts/run_hidden_pie_demo.py`
-- Single Gemma demo:
-  - `python scripts/run_gemma3_hidden_pie_demo.py`
-- Sequential Gemma strategy demo:
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_gemma3_strategy_set.ps1`
-- Research sweep:
-  - `python scripts/run_gemma3_research_sweep.py --preset smoke`
-  - `python scripts/run_gemma3_research_sweep.py --preset research`
-- Output directories:
-  - `outputs/hidden_pie_demo/`
-  - `outputs/gemma3_demo/`
-  - `outputs/gemma3_research/`
-- Gemma/Ollama setup:
-  - `ollama pull gemma3`
-  - `Invoke-RestMethod http://localhost:11434/api/tags`
-  - clarify that `ollama serve` reporting port `11434` is already in use means Ollama is already running
-- Proposer strategies:
-  - `honest_fair`
-  - `self_interested`
-  - `deceptive`
-- Research interpretation:
-  - deceptive strategy should usually underclaim and offer about half of the claimed pie
-  - audit rate and lie detection should vary with audit probability
-  - results should be interpreted across seeds, not single runs
-- Current phase status:
-  - Phase 1 complete
-  - Phase 2 foundation complete
-  - Phase 3A local Ollama/Gemma complete
-  - Paid providers planned later
-  - Phase 4 systematic comparisons now supported/starting
-- Claude hooks:
-  - CLAUDE maintenance hook
-  - review-agent hook
-  - generated outputs ignored
+Documentation updates:
+1. Add `risk_aware` to proposer strategy descriptions:
+   - chooses whether to report honestly or underclaim based on audit probability and penalty
+   - intended to test adaptive deception
+2. Document the new preset:
+
+```bash
+python scripts/run_gemma3_research_sweep.py --preset risk --model gemma3
+```
+
+3. Explain the research interpretation:
+   - `deceptive` is instruction-driven deception
+   - `risk_aware` is incentive-sensitive deception
+   - compare whether `risk_aware` deception falls as audit probability or penalty rises
+4. Keep phase boundaries clear:
+   - still local Ollama/Gemma only
+   - no paid provider clients yet
+   - no new game variants yet
+5. Mention any new analysis helper/table if Stage 4 added one.
 
 Verification commands:
 
@@ -74,16 +53,15 @@ python -m pytest
 python scripts/run_gemma3_research_sweep.py --help
 ```
 
-Optional manual smoke if Ollama is available:
+Optional manual run if Ollama is available:
 
 ```powershell
-python scripts\run_gemma3_research_sweep.py --preset smoke --model gemma3
+python scripts\run_gemma3_research_sweep.py --preset risk --rounds 5 --seeds 1 --audit-probs 0.0 1.0 --lie-penalties 0 50 --model gemma3
 ```
 
 Definition of done:
-- Docs accurately describe the current code.
+- Docs accurately describe `risk_aware`.
+- Docs accurately describe the new preset and current local-only provider state.
 - Full test suite passes.
 - Help command works.
-- `.gitignore` ignores generated research outputs through `outputs/`.
-- No generated output files are added as source.
 

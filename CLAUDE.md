@@ -35,6 +35,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run_gemma3_strategy_set.ps1
 # Phase 4 research sweep (requires Ollama + gemma3)
 python scripts/run_gemma3_research_sweep.py --preset smoke
 python scripts/run_gemma3_research_sweep.py --preset research
+python scripts/run_gemma3_research_sweep.py --preset risk --model gemma3
 python scripts/run_gemma3_research_sweep.py --help
 
 # Optional live Ollama tests, requires Ollama running and gemma3 installed
@@ -50,7 +51,7 @@ Phase 2 is complete: the repository has an LLM layer with a provider-agnostic `L
 
 Phase 3A is complete: `OllamaLLMClient` runs Gemma 3 locally through Ollama. Paid provider clients and API key handling are not implemented yet.
 
-Phase 4 is starting: `run_llm_strategy_sweep()` runs a full research grid (strategies × audit_probabilities × lie_penalties × seeds) with LLM agents, writes per-run logs, a combined CSV, an aggregate CSV (means across seeds), a manifest, and strategy plots. `scripts/run_gemma3_research_sweep.py` is the CLI entry point with `--preset smoke` and `--preset research`.
+Phase 4 is in progress: `run_llm_strategy_sweep()` runs a full research grid (strategies × audit_probabilities × lie_penalties × seeds) with LLM agents, writes per-run logs, a combined CSV, an aggregate CSV (means across seeds), a manifest, and strategy plots. `scripts/run_gemma3_research_sweep.py` is the CLI entry point with presets `smoke`, `research`, and `risk`. A fourth LLM proposer strategy `risk_aware` has been added: the model decides whether to report honestly or underclaim based on the expected audit cost (`audit_prob × lie_penalty`). The `--preset risk` sweep compares `honest_fair`, `deceptive`, and `risk_aware` across 4 audit probabilities, 3 penalties, and 3 seeds (108 runs). `summarize_strategy_by_audit_risk()` in `ultimatum_arena.analysis` provides a pure helper to inspect whether `risk_aware` deception falls as audit risk increases.
 
 Local Gemma 3 setup has been verified with Ollama: `gemma3:latest` and `gemma3:4b` are available locally, and `RUN_OLLAMA_TESTS=1 python -m pytest tests/test_ollama_client.py` passes when Ollama is running.
 
@@ -91,10 +92,11 @@ Do not rewrite these interfaces. Future agents should subclass `BaseProposer` or
 - `ultimatum_arena/runners/llm_sweep.py`: `run_llm_strategy_sweep()` — sweeps strategies × audit_probabilities × lie_penalties × seeds with LLM agents; writes `runs/`, `combined_summary.csv`, and `manifest.json` when `output_dir` is provided. The aggregate CSV and plots are produced by `scripts/run_gemma3_research_sweep.py`, not by the runner itself.
 - `ultimatum_arena/analysis/metrics.py`: pure `compute_metrics(list[RoundResult]) -> dict`.
 - `ultimatum_arena/analysis/plots.py`: `plot_metric_by_audit_prob()` (group by any field), `plot_metric_by_audit_prob_for_strategies()` (group by strategy, optional lie_penalty filter), `save_aggregate_csv()` (aggregate means by strategy/audit/penalty).
+- `ultimatum_arena/analysis/sweep_summary.py`: `summarize_strategy_by_audit_risk(rows, strategy, *, lie_penalty=None)` — pure helper that filters by strategy/penalty, groups by `audit_prob`, averages across seeds, and returns rows sorted by `audit_prob`. Returns `[]` is replaced by raising `ValueError` for no-match; see docstring.
 - `ultimatum_arena/storage/jsonl.py`: JSONL/JSON persistence helpers.
 - `ultimatum_arena/llm/`: provider-agnostic LLM layer, fake client, parser, prompts, LLM agents, and local Ollama client.
 - `scripts/run_gemma3_strategy_set.ps1`: sequentially runs the Gemma demo for `honest_fair`, `self_interested`, and `deceptive` proposer strategies.
-- `scripts/run_gemma3_research_sweep.py`: Phase 4 CLI — presets `smoke` and `research`, all dimensions overridable; writes full output tree including plots and aggregate CSV.
+- `scripts/run_gemma3_research_sweep.py`: Phase 4 CLI — presets `smoke`, `research`, and `risk`, all dimensions overridable; writes full output tree including plots and aggregate CSV. When `risk_aware` is included, prints an additional deception-by-audit-risk table.
 
 ## Phase 1 Demo
 
@@ -194,7 +196,7 @@ Public LLM pieces:
 
 - `LLMClient` protocol: `generate(prompt: str) -> str`
 - `FakeLLMClient`: deterministic test client
-- `LLMProposer`, with proposer strategy profiles: `honest_fair`, `self_interested`, and `deceptive`
+- `LLMProposer`, with proposer strategy profiles: `honest_fair`, `self_interested`, `deceptive`, and `risk_aware`
 - `LLMResponder`
 - `OllamaLLMClient`
 - prompt builders and robust JSON extraction/parser
