@@ -1,9 +1,9 @@
-# Stage 1 Prompt: Design Audit for Risk-Aware Proposer Strategy
+# Stage 1 Prompt: Design Audit for Expected-Value Strategy
 
 You are working on the Python project `ultimatum_arena`.
 
 Goal:
-Plan the next Hidden Pie + Audit research step: add a fourth LLM proposer strategy called `risk_aware`.
+Plan the next Hidden Pie + Audit research step: add a fifth LLM proposer strategy called `expected_value`.
 
 This stage is design/audit only. Do not write implementation code in this stage.
 
@@ -15,41 +15,52 @@ The project already supports:
   - `honest_fair`
   - `self_interested`
   - `deceptive`
+  - `risk_aware`
 - `LLMResponder`
 - `OllamaLLMClient`
 - `FakeLLMClient`
 - `run_llm_strategy_sweep()`
 - `scripts/run_gemma3_research_sweep.py`
-- research outputs under `outputs/gemma3_research/<timestamp>/`
+- presets:
+  - `smoke`
+  - `research`
+  - `risk`
+- `summarize_strategy_by_audit_risk()`
 
 Current research finding:
-The `deceptive` strategy is intentionally instructed to lie, so it keeps lying even when audit probability and lie penalty are high. That is useful for payoff analysis, but it does not test whether Gemma can adaptively decide whether deception is worth the risk.
+The `risk_aware` strategy did not lie at all, even when audit probability and penalty were zero. It behaved like a cautious/ethical generous baseline, not like a payoff-maximizing expected-value strategist.
 
 Next research question:
-Does Gemma reduce deception when expected audit cost rises?
+Can Gemma choose deception based on explicit expected-value/payoff-maximization logic?
 
 Proposed new strategy:
 
 ```text
-risk_aware
+expected_value
 ```
 
-Behavior:
-- sees true pie, audit probability, and lie penalty
-- can choose honest reporting or deceptive underclaiming
-- should compare deception benefit against expected audit cost
-- should lie more when audit probability/penalty is low
-- should become more honest when audit probability/penalty is high
-- must still output exactly the same JSON action schema:
+Intended behavior:
+- compare expected payoff from honest reporting versus underclaiming
+- account for audit probability and lie penalty
+- use approximate arithmetic, but do not expose chain-of-thought
+- underclaim when expected payoff is higher
+- report honestly when expected audit cost makes deception unattractive
+- produce the same JSON schema:
   `{"claimed_pie": <number>, "offer": <number>, "public_message": "<string>"}`
+
+Important distinction:
+- `risk_aware` = cautious and incentive-aware, may avoid lying.
+- `expected_value` = explicitly self-interested expected-payoff maximizer.
+- `deceptive` = instruction-driven deception regardless of risk.
 
 Files to inspect:
 - `ultimatum_arena/llm/prompts.py`
 - `ultimatum_arena/llm/agents.py`
 - `tests/test_llm_agents.py`
-- `ultimatum_arena/runners/llm_sweep.py`
 - `scripts/run_gemma3_research_sweep.py`
-- `tests/test_llm_sweep.py`
+- `tests/test_research_sweep_script.py`
+- `ultimatum_arena/analysis/sweep_summary.py`
+- `tests/test_sweep_summary.py`
 - `README.md`
 - `CLAUDE.md`
 - `AGENTS.md`
@@ -60,9 +71,10 @@ Your task:
 3. Do not edit files.
 4. In your final response, provide:
    - exact files to edit in Stage 2
-   - expected prompt wording principles for `risk_aware`
+   - expected prompt wording principles for `expected_value`
    - tests needed
-   - whether sweep presets should include `risk_aware` by default or only in a new preset
+   - whether to add a new preset or extend `risk`
+   - risks/open questions
 
 Constraints:
 - Do not add paid providers.
@@ -74,5 +86,5 @@ Constraints:
 
 Definition of done:
 - No code changed.
-- There is a clear plan for implementing `risk_aware`.
+- There is a clear plan for implementing `expected_value`.
 

@@ -1,89 +1,82 @@
-# Stage 4 Prompt: Add Risk-Aware Analysis Checks
+# Stage 4 Prompt: Analysis Helpers for Adaptive Deception Comparison
 
 You are working on the Python project `ultimatum_arena`.
 
 Goal:
-Add lightweight analysis support for interpreting whether `risk_aware` responds to audit risk.
+Improve lightweight analysis so we can compare `risk_aware` and `expected_value` adaptation across audit risk.
 
 Important constraints:
 - Do not add pandas.
 - Do not add heavy statistics dependencies.
-- Do not overbuild analysis.
-- Keep functions pure and testable.
+- Keep helpers pure and testable.
 - Do not require Ollama in tests.
+- Keep outputs simple and research-useful.
 
 Files to inspect:
-- `ultimatum_arena/analysis/metrics.py`
-- `ultimatum_arena/analysis/plots.py`
+- `ultimatum_arena/analysis/sweep_summary.py`
+- `ultimatum_arena/analysis/__init__.py`
 - `scripts/run_gemma3_research_sweep.py`
-- `tests/test_plots.py`
-- `tests/test_metrics.py`
+- `tests/test_sweep_summary.py`
+- `tests/test_research_sweep_script.py`
 
 Files to edit:
-- Prefer editing `ultimatum_arena/analysis/plots.py` only if the helper naturally belongs there.
-- Alternatively create a small new module:
-  - `ultimatum_arena/analysis/sweep_summary.py`
-- Update `ultimatum_arena/analysis/__init__.py` if adding stable public helpers.
-- Add tests.
+- `ultimatum_arena/analysis/sweep_summary.py`
+- `tests/test_sweep_summary.py`
+- `scripts/run_gemma3_research_sweep.py` if useful
 
-Desired helper:
-Add a small pure helper that summarizes deception/payoff trends for one strategy across audit risk.
+Required fix:
+Make `summarize_strategy_by_audit_risk()` robust to rows loaded from CSV, where numeric values are strings.
 
-Example:
+Requirements:
+- Convert `audit_prob`, `lie_penalty`, and metric values to floats internally.
+- `lie_penalty=25.0` should match rows whose `lie_penalty` is `"25.0"`.
+- Sorting by `audit_prob` should be numeric.
+- Output `audit_prob` should be numeric.
+- Add tests with CSV-style string rows.
+
+Optional enhancement:
+Add a helper to compare adaptive strategies:
 
 ```python
-def summarize_strategy_by_audit_risk(
+def summarize_adaptive_strategies(
     rows: list[dict],
-    strategy: str,
+    strategies: list[str] = ["risk_aware", "expected_value"],
     *,
     lie_penalty: float | None = None,
 ) -> list[dict]:
     ...
 ```
 
-Expected behavior:
-- Filter rows by strategy.
-- Optionally filter by lie penalty.
-- Group by `audit_prob`.
-- Average across seeds and penalties if not filtered.
-- Return rows sorted by `audit_prob`.
-- Include:
-  - `strategy`
-  - `audit_prob`
-  - `n_runs`
-  - `deception_rate`
-  - `proposer_mean_payoff`
-  - `proposer_advantage`
-  - `lie_detection_rate_among_lies`
+Only add this if it stays small. It can simply call `summarize_strategy_by_audit_risk()` for each strategy and concatenate results.
 
-This helper should make it easy to inspect whether `risk_aware` deception falls as audit risk increases.
-
-Tests:
-- grouping by audit probability works
-- rows are sorted numerically
-- multiple seeds are averaged
-- lie penalty filter works
-- empty matching rows returns `[]` or raises `ValueError`; choose one behavior and document it
-- no Ollama required
-
-Optional script integration:
-If simple, have `scripts/run_gemma3_research_sweep.py` print an additional short table when `risk_aware` is present:
+Script integration:
+If `expected_value` is present in the sweep rows, print a concise table like:
 
 ```text
-Risk-aware deception by audit probability
+Expected-value deception by audit probability
 audit_prob deception_rate proposer_mean_payoff proposer_advantage
 ...
 ```
 
+If both `risk_aware` and `expected_value` are present, it is okay to print two separate tables.
+
+Tests:
+- CSV-style string rows work.
+- float `lie_penalty` filter matches string row values.
+- numeric sorting works when audit probabilities are strings.
+- missing/non-numeric values produce clear `ValueError` or are skipped consistently; document the chosen behavior.
+- existing tests still pass.
+
 Commands to run:
 
 ```bash
-python -m pytest tests/test_plots.py tests/test_metrics.py
+python -m pytest tests/test_sweep_summary.py
+python -m pytest tests/test_research_sweep_script.py
 python -m pytest
 ```
 
 Definition of done:
-- There is a small tested way to summarize `risk_aware` behavior by audit risk.
-- Existing plots and sweep outputs still work.
+- Summary helper works with both in-memory sweep rows and CSV-loaded rows.
+- `expected_value` can be summarized by audit risk.
 - Full test suite passes.
 

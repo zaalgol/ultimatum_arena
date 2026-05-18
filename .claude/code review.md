@@ -1,72 +1,27 @@
-﻿# Code Review: Risk-Aware Strategy Implementation
+﻿# Code Review
 
 ## Findings
 
-### P2: `summarize_strategy_by_audit_risk()` fails on CSV-loaded sweep rows
+### P2 - `summarize_adaptive_strategies()` silently hides malformed rows
 
-File:
-- `ultimatum_arena/analysis/sweep_summary.py:53-79`
+File: `ultimatum_arena/analysis/sweep_summary.py`, lines 124-131
 
-The new helper works for in-memory rows returned directly by `run_llm_strategy_sweep()`, but it fails for rows loaded from `combined_summary.csv` with `csv.DictReader` / `Import-Csv`, because all numeric values are strings. This is a likely workflow for this project: the research sweep writes CSVs specifically for later analysis.
+`summarize_adaptive_strategies()` catches every `ValueError` raised by `summarize_strategy_by_audit_risk()` and treats it as "strategy not present." That is broader than the documented behavior. The underlying helper also raises `ValueError` for malformed numeric fields, for example a CSV-loaded row with `audit_prob="bad"` or `lie_penalty="not-a-number"`. In that case the adaptive helper silently drops the strategy instead of surfacing a data-quality problem, which can make research summaries look valid while omitting corrupted rows.
 
-Example failure:
+Suggested fix: only skip strategies that truly have no matching rows. One clean approach is to pre-check whether any row has the requested strategy and optional lie penalty before calling `summarize_strategy_by_audit_risk()`, then let conversion/data errors propagate. Add a regression test where a matching `expected_value` row has an invalid numeric field and assert that `summarize_adaptive_strategies()` raises instead of returning `[]`.
 
-```python
-from ultimatum_arena.analysis import summarize_strategy_by_audit_risk
+### P3 - Wording says "all four adaptive strategies," but not all four are adaptive
 
-rows = [{
-    "strategy": "risk_aware",
-    "audit_prob": "0.0",
-    "lie_penalty": "25.0",
-    "deception_rate": "0.8",
-    "proposer_mean_payoff": "10.0",
-    "proposer_advantage": "1.0",
-    "lie_detection_rate_among_lies": "0.0",
-}]
+Files: `scripts/run_gemma3_research_sweep.py`, `README.md`, `CLAUDE.md`, `AGENTS.md`
 
-summarize_strategy_by_audit_risk(rows, "risk_aware")
-# TypeError: unsupported operand type(s) for +: 'int' and 'str'
-```
-
-There is also an exact-match issue for penalty filtering: `lie_penalty=25.0` will not match a CSV row whose value is `'25.0'`.
-
-Recommendation:
-Convert `audit_prob`, `lie_penalty`, and metric values with `float(...)` inside the helper, similar to the existing plotting code. Keep output `audit_prob` numeric and sort numerically. Add tests with CSV-style string rows and a float `lie_penalty` filter.
-
-### P3: CLI help epilog does not mention the new `risk` preset
-
-File:
-- `scripts/run_gemma3_research_sweep.py:5-18`
-
-The argparse choices correctly include `risk`, but the long help text / epilog still lists only the smoke and full research examples. Since users discover workflows via `--help`, add an example such as:
-
-```bash
-python scripts/run_gemma3_research_sweep.py --preset risk --model gemma3
-```
-
-### P3: Manifest-extra behavior is not directly tested
-
-File:
-- `ultimatum_arena/runners/llm_sweep.py:68,175-188`
-
-`manifest_extra` is a useful addition and is used by the CLI, but there is no direct test asserting that extra manifest fields are written. This is not currently broken, but a small regression test would protect reproducibility metadata (`model`, `temperature`, `preset`, `run_id`, etc.).
-
-Recommendation:
-Add a `tests/test_llm_sweep.py` case that calls `run_llm_strategy_sweep(..., manifest_extra={"model": "fake", "preset": "unit"})` and asserts those fields appear in `manifest.json`.
+The `ev` preset compares `honest_fair`, `deceptive`, `risk_aware`, and `expected_value`, but the docs/help text call this "all four adaptive strategies." `honest_fair` is a baseline and `deceptive` is instruction-driven, so this phrasing is misleading. Prefer "all four comparison strategies" or "four proposer strategies."
 
 ## Tests Run
 
-```text
-python -m pytest tests/test_llm_agents.py tests/test_research_sweep_script.py tests/test_sweep_summary.py
-# 162 passed
-
-python scripts\run_gemma3_research_sweep.py --help
-# help command works; risk appears in choices
-
-python -m pytest
-# 358 passed, 2 skipped
-```
+- `python scripts\run_gemma3_research_sweep.py --help`
+- Valid CSV-string smoke check for `summarize_strategy_by_audit_risk()` and `summarize_adaptive_strategies()`
+- `python -m pytest` -> 397 passed, 2 skipped
 
 ## Summary
 
-The core `risk_aware` implementation looks sound: the strategy is registered, prompt coverage is tested, the `risk` preset is present, and the full suite passes. The main fix needed is making the new analysis helper robust to CSV-loaded rows, because that is the natural research workflow after long Gemma sweeps. The other two items are small polish/protection tasks.
+The `expected_value` strategy, `ev` preset, exports, docs, and tests are mostly in good shape. The main issue to fix before committing is the broad `ValueError` catch in `summarize_adaptive_strategies()`, because it can hide malformed experiment data.

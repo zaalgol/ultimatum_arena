@@ -13,6 +13,9 @@ Usage
     # Risk-aware comparison (honest_fair vs deceptive vs risk_aware, 108 runs)
     python scripts/run_gemma3_research_sweep.py --preset risk --model gemma3
 
+    # Expected-value comparison (four proposer strategies, 144 runs)
+    python scripts/run_gemma3_research_sweep.py --preset ev --model gemma3
+
     # Custom override example
     python scripts/run_gemma3_research_sweep.py --preset smoke --rounds 20 --seeds 1 2
 
@@ -69,6 +72,13 @@ _PRESETS: dict[str, dict] = {
     },
     "risk": {
         "strategies": ["honest_fair", "deceptive", "risk_aware"],
+        "audit_probabilities": [0.0, 0.25, 0.5, 1.0],
+        "lie_penalties": [0.0, 25.0, 50.0],
+        "seeds": [1, 2, 3],
+        "n_rounds": 50,
+    },
+    "ev": {
+        "strategies": ["honest_fair", "deceptive", "risk_aware", "expected_value"],
         "audit_probabilities": [0.0, 0.25, 0.5, 1.0],
         "lie_penalties": [0.0, 25.0, 50.0],
         "seeds": [1, 2, 3],
@@ -203,7 +213,15 @@ def _print_summary_table(rows: list[dict]) -> None:
     print(header)
     print("  " + "-" * (16 + 14 * len(metrics)))
 
-    for strategy in ["honest_fair", "self_interested", "deceptive"]:
+    canonical_order = [
+        "honest_fair",
+        "self_interested",
+        "deceptive",
+        "risk_aware",
+        "expected_value",
+    ]
+    canonical = set(canonical_order)
+    for strategy in canonical_order:
         group = groups.get(strategy, [])
         if not group:
             continue
@@ -217,7 +235,6 @@ def _print_summary_table(rows: list[dict]) -> None:
         print(row_str)
 
     # Also print any strategies not in the canonical order
-    canonical = {"honest_fair", "self_interested", "deceptive"}
     for strategy, group in sorted(groups.items()):
         if strategy in canonical:
             continue
@@ -358,24 +375,29 @@ def main(argv: list[str] | None = None) -> None:
     _section("Results by Strategy (averaged across other dimensions)")
     _print_summary_table(rows)
 
-    # Optional risk-aware deception table
-    if "risk_aware" in cfg["strategies"]:
-        try:
-            risk_rows = summarize_strategy_by_audit_risk(rows, "risk_aware")
-            _section("Risk-aware deception by audit probability")
-            header = (
-                f"  {'audit_prob':>10}  {'deception_rate':>14}  "
-                f"{'proposer_mean_payoff':>20}  {'proposer_advantage':>18}"
-            )
-            print(header)
-            print("  " + "-" * 68)
-            for r in risk_rows:
-                print(
-                    f"  {r['audit_prob']:>10.2f}  {r['deception_rate']:>14.4f}  "
-                    f"  {r['proposer_mean_payoff']:>18.4f}  {r['proposer_advantage']:>18.4f}"
+    # Optional per-strategy deception tables for adaptive strategies
+    _ADAPTIVE_STRATEGIES = [
+        ("risk_aware", "Risk-aware deception by audit probability"),
+        ("expected_value", "Expected-value deception by audit probability"),
+    ]
+    for _strat, _title in _ADAPTIVE_STRATEGIES:
+        if _strat in cfg["strategies"]:
+            try:
+                _strat_rows = summarize_strategy_by_audit_risk(rows, _strat)
+                _section(_title)
+                _hdr = (
+                    f"  {'audit_prob':>10}  {'deception_rate':>14}  "
+                    f"{'proposer_mean_payoff':>20}  {'proposer_advantage':>18}"
                 )
-        except ValueError:
-            pass
+                print(_hdr)
+                print("  " + "-" * 68)
+                for r in _strat_rows:
+                    print(
+                        f"  {r['audit_prob']:>10.2f}  {r['deception_rate']:>14.4f}  "
+                        f"  {r['proposer_mean_payoff']:>18.4f}  {r['proposer_advantage']:>18.4f}"
+                    )
+            except ValueError:
+                pass
 
     _section("Output")
     print(f"  Runs              : {output_dir / 'runs'}")

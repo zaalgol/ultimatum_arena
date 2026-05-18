@@ -6,7 +6,10 @@ from ultimatum_arena.analysis.plots import (
     plot_metric_by_audit_prob_for_strategies,
     save_aggregate_csv,
 )
-from ultimatum_arena.analysis.sweep_summary import summarize_strategy_by_audit_risk
+from ultimatum_arena.analysis.sweep_summary import (
+    summarize_adaptive_strategies,
+    summarize_strategy_by_audit_risk,
+)
 
 __all__ = [
     "compute_metrics",
@@ -14,4 +17,5 @@ __all__ = [
     "plot_metric_by_audit_prob_for_strategies",
     "save_aggregate_csv",
     "summarize_strategy_by_audit_risk",
+    "summarize_adaptive_strategies",
 ]

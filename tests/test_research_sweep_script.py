@@ -89,3 +89,56 @@ class TestParseArgsRiskPreset:
     def test_smoke_still_default(self):
         args = parse_args([])
         assert args.preset == "smoke"
+
+
+class TestEvPresetExists:
+    def test_ev_preset_in_presets(self):
+        assert "ev" in _PRESETS
+
+    def test_ev_preset_includes_expected_value(self):
+        assert "expected_value" in _PRESETS["ev"]["strategies"]
+
+    def test_ev_preset_includes_honest_fair(self):
+        assert "honest_fair" in _PRESETS["ev"]["strategies"]
+
+    def test_ev_preset_includes_deceptive(self):
+        assert "deceptive" in _PRESETS["ev"]["strategies"]
+
+    def test_ev_preset_includes_risk_aware(self):
+        assert "risk_aware" in _PRESETS["ev"]["strategies"]
+
+    def test_ev_preset_audit_probabilities(self):
+        assert _PRESETS["ev"]["audit_probabilities"] == [0.0, 0.25, 0.5, 1.0]
+
+    def test_ev_preset_lie_penalties(self):
+        assert _PRESETS["ev"]["lie_penalties"] == [0.0, 25.0, 50.0]
+
+    def test_ev_preset_seeds(self):
+        assert _PRESETS["ev"]["seeds"] == [1, 2, 3]
+
+    def test_ev_preset_rounds(self):
+        assert _PRESETS["ev"]["n_rounds"] == 50
+
+    def test_ev_preset_total_runs(self):
+        p = _PRESETS["ev"]
+        total = (
+            len(p["strategies"])
+            * len(p["audit_probabilities"])
+            * len(p["lie_penalties"])
+            * len(p["seeds"])
+        )
+        assert total == 144
+
+
+class TestParseArgsEvPreset:
+    def test_ev_is_accepted_preset(self):
+        args = parse_args(["--preset", "ev"])
+        assert args.preset == "ev"
+
+    def test_ev_with_rounds_override(self):
+        args = parse_args(["--preset", "ev", "--rounds", "10"])
+        assert args.rounds == 10
+
+    def test_ev_with_seeds_override(self):
+        args = parse_args(["--preset", "ev", "--seeds", "1"])
+        assert args.seeds == [1]

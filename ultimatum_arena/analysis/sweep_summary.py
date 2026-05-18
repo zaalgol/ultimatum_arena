@@ -88,3 +88,54 @@ def summarize_strategy_by_audit_risk(
         result.append(summary)
 
     return result
+
+
+def summarize_adaptive_strategies(
+    rows: list[dict],
+    strategies: list[str] | None = None,
+    *,
+    lie_penalty: float | None = None,
+) -> list[dict]:
+    """Compare multiple adaptive strategies across audit risk.
+
+    Calls :func:`summarize_strategy_by_audit_risk` for each strategy and
+    concatenates the results.  Strategies with no matching rows are silently
+    skipped.
+
+    Parameters
+    ----------
+    rows:
+        List of sweep result dicts (in-memory or CSV-loaded).
+    strategies:
+        Strategy names to summarize.  Defaults to
+        ``["risk_aware", "expected_value"]``.
+    lie_penalty:
+        Forwarded to :func:`summarize_strategy_by_audit_risk`.
+
+    Returns
+    -------
+    list[dict]
+        All summary rows, ordered by strategy (as given) then by
+        ``audit_prob``.  Empty if no strategy has matching rows.
+    """
+    if strategies is None:
+        strategies = ["risk_aware", "expected_value"]
+
+    result = []
+    for strategy in strategies:
+        # Pre-check: does this strategy (and optional penalty) have any rows?
+        # Only skip when truly absent; let conversion/data errors propagate.
+        matching = [r for r in rows if r.get("strategy") == strategy]
+        if lie_penalty is not None:
+            matching = [
+                r for r in matching
+                if r.get("lie_penalty") is not None
+                and float(r["lie_penalty"]) == lie_penalty
+            ]
+        if not matching:
+            continue  # strategy not present — skip silently
+        result.extend(
+            summarize_strategy_by_audit_risk(rows, strategy, lie_penalty=lie_penalty)
+        )
+
+    return result

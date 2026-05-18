@@ -907,3 +907,61 @@ class TestRiskAwareStrategy:
         prompt = build_proposer_prompt(_proposer_obs(), strategy="risk_aware")
         lower = prompt.lower()
         assert "do not" in lower or "don't" in lower or "placeholder" in lower
+
+
+# ---------------------------------------------------------------------------
+# expected_value strategy
+# ---------------------------------------------------------------------------
+
+class TestExpectedValueStrategy:
+    def test_expected_value_in_valid_strategies(self):
+        assert "expected_value" in VALID_STRATEGIES
+
+    def test_llm_proposer_accepts_expected_value(self):
+        LLMProposer(FakeLLMClient(), strategy="expected_value")  # must not raise
+
+    def test_expected_value_prompt_contains_header(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        assert "EXPECTED-VALUE" in prompt
+
+    def test_expected_value_prompt_mentions_maximize_expected_payoff(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        lower = prompt.lower()
+        assert "maximize expected proposer payoff" in lower
+
+    def test_expected_value_prompt_mentions_honest(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        assert "honest" in prompt.lower()
+
+    def test_expected_value_prompt_mentions_underclaim(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        assert "underclaim" in prompt.lower()
+
+    def test_expected_value_prompt_mentions_expected_audit_cost(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        assert "expected audit cost" in prompt.lower()
+
+    def test_expected_value_prompt_mentions_formula(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        assert "audit_probability * lie_penalty" in prompt
+
+    def test_expected_value_prompt_distinct_from_all_other_strategies(self):
+        obs = _proposer_obs()
+        ev_prompt = build_proposer_prompt(obs, strategy="expected_value")
+        for other in ("honest_fair", "self_interested", "deceptive", "risk_aware"):
+            assert ev_prompt != build_proposer_prompt(obs, strategy=other)
+
+    def test_expected_value_reaches_client(self):
+        client = FakeLLMClient()
+        proposer = LLMProposer(client, strategy="expected_value")
+        proposer.act(_proposer_obs())
+        assert "EXPECTED-VALUE" in client.calls[0]
+
+    def test_expected_value_prompt_no_placeholder_warning(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        lower = prompt.lower()
+        assert "do not" in lower or "don't" in lower or "placeholder" in lower
+
+    def test_invalid_strategy_still_raises(self):
+        with pytest.raises(ValueError, match="Unknown strategy"):
+            LLMProposer(FakeLLMClient(), strategy="expected_value_extra")
