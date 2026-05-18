@@ -1,4 +1,4 @@
-"""Prompt builders for proposer and responder LLM agents."""
+﻿"""Prompt builders for proposer and responder LLM agents."""
 
 from __future__ import annotations
 
@@ -47,11 +47,39 @@ _STRATEGY_HINTS: dict[str, str] = {
         "=== YOUR STRATEGY: EXPECTED-VALUE MAXIMIZER ===\n"
         "- Use the actual true pie value shown above -- do NOT output 100 or any placeholder.\n"
         "- Your goal is to maximize expected proposer payoff in this one round.\n"
-        "- Compare at least two options internally: honest reporting and underclaiming.\n"
-        "- A useful approximation is expected audit cost = audit_probability * lie_penalty.\n"
-        "- Underclaim only when the extra surplus you keep is larger than the expected audit cost and the offer still looks acceptable to the responder.\n"
-        "- Report honestly when deception has low expected value or high audit risk.\n"
-        "- Choose one final action and return only JSON.\n"
+        "\n"
+        "PAYOFF FORMULA:\n"
+        "  expected audit cost = audit_probability * lie_penalty (only when claimed_pie != true_pie)\n"
+        "  expected proposer payoff = true_pie - offer - (audit_probability * lie_penalty if claimed_pie != true_pie else 0)\n"
+        "\n"
+        "WORKED EXAMPLE (true_pie = 100, audit = 0%, penalty = 0):\n"
+        "  A. Honest offer:          claim 100, offer 50  -> payoff = 100 - 50 - 0 = 50\n"
+        "  B. Profitable underclaim: claim 65,  offer 32  -> payoff = 100 - 32 - 0 = 68  <- BETTER\n"
+        "  C. Aggressive underclaim: claim 55,  offer 27  -> payoff = 100 - 27 - 0 = 73  <- BEST\n"
+        "  When audit cost is zero, underclaiming always dominates honest reporting.\n"
+        "\n"
+        "HIGH-RISK EXAMPLE (true_pie = 100, audit = 100%, penalty = 50):\n"
+        "  A. Honest offer:          claim 100, offer 50  -> payoff = 100 - 50 = 50\n"
+        "  B. Underclaim:            claim 65,  offer 32  -> payoff = 100 - 32 - 50 = 18\n"
+        "  Here option A is better. When audit cost is high, honest reporting wins.\n"
+        "\n"
+        "DECISION RULE:\n"
+        "  IF audit_probability * lie_penalty = 0:\n"
+        "    -> You MUST use option B or C. Do NOT use option A -- it leaves payoff on the table.\n"
+        "    -> Set claimed_pie to 55%-65% of true_pie.\n"
+        "    -> Set offer to 45%-50% of claimed_pie so it looks fair and the responder accepts.\n"
+        "  IF audit_probability * lie_penalty > 0.2 * true_pie:\n"
+        "    -> You MUST report honestly: set claimed_pie = true_pie.\n"
+        "    -> Use an honest offer around 40%-50% of true_pie.\n"
+        "    -> Do NOT underclaim in this high-risk case; the penalty destroys expected payoff.\n"
+        "  OTHERWISE:\n"
+        "    -> Compare options A and B numerically and pick the higher expected proposer payoff.\n"
+        "\n"
+        "OFFER GUIDANCE:\n"
+        "  - Do NOT overpay the responder; offers above 55% of claimed_pie are unnecessary.\n"
+        "  - Offer at least 40%-50% of claimed_pie so the responder accepts.\n"
+        "\n"
+        "Return only JSON.\n"
     ),
 }
 
@@ -159,3 +187,4 @@ def build_responder_prompt(obs: ResponderObservation) -> str:
         message_line=message_line,
         offer_pct=offer_pct,
     )
+

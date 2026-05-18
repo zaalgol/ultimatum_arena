@@ -1,90 +1,56 @@
-# Stage 1 Prompt: Design Audit for Expected-Value Strategy
+# Stage 1: Audit Expected-Value Behavior And Design Calibration
 
-You are working on the Python project `ultimatum_arena`.
+You are Claude Code working in the `ultimatum_arena` repository.
 
-Goal:
-Plan the next Hidden Pie + Audit research step: add a fifth LLM proposer strategy called `expected_value`.
+## Goal
 
-This stage is design/audit only. Do not write implementation code in this stage.
+Audit why the current Gemma `expected_value` strategy produced zero deception and highly generous offers in the completed run:
 
-Context:
-The project already supports:
-- `HiddenPieAuditEnv`
-- `LLMProposer(client, strategy=...)`
-- proposer strategies:
-  - `honest_fair`
-  - `self_interested`
-  - `deceptive`
-  - `risk_aware`
-- `LLMResponder`
-- `OllamaLLMClient`
-- `FakeLLMClient`
-- `run_llm_strategy_sweep()`
+`outputs/gemma3_research/20260518_004953`
+
+Do not make implementation changes in this stage. Produce a short technical diagnosis and an implementation plan for the next stage.
+
+## Files To Inspect
+
+- `ultimatum_arena/llm/prompts.py`
+- `ultimatum_arena/agents/llm_agents.py`
+- `ultimatum_arena/runners/llm_sweep.py`
 - `scripts/run_gemma3_research_sweep.py`
-- presets:
-  - `smoke`
-  - `research`
-  - `risk`
-- `summarize_strategy_by_audit_risk()`
+- `tests/test_llm_agents.py`
+- `tests/test_research_sweep_script.py`
+- `outputs/gemma3_research/20260518_004953/combined_summary.csv`
+- `outputs/gemma3_research/20260518_004953/aggregate_by_strategy_audit_penalty.csv`
+- Several representative JSONL files in `outputs/gemma3_research/20260518_004953/runs/`, especially:
+  - `*strategy-expected-value_audit-0p000_penalty-0p000_seed-1.jsonl`
+  - `*strategy-deceptive_audit-0p000_penalty-0p000_seed-1.jsonl`
+  - `*strategy-risk-aware_audit-0p000_penalty-0p000_seed-1.jsonl`
 
-Current research finding:
-The `risk_aware` strategy did not lie at all, even when audit probability and penalty were zero. It behaved like a cautious/ethical generous baseline, not like a payoff-maximizing expected-value strategist.
+## What To Analyze
 
-Next research question:
-Can Gemma choose deception based on explicit expected-value/payoff-maximization logic?
+- Whether the zero deception for `expected_value` is a logging/metrics bug or real model behavior.
+- Whether the prompt gives Gemma enough concrete numerical guidance to choose deception when audit cost is zero.
+- Whether responder behavior makes deceptive offers acceptable.
+- Whether the next change should revise `expected_value` or add a separate strategy name.
 
-Proposed new strategy:
+## Constraints
 
-```text
-expected_value
+- Do not edit code or docs in this stage.
+- Do not run a new long Gemma sweep.
+- Do not add Phase 5 game variants.
+- Do not add paid API providers.
+
+## Commands To Run
+
+Run only lightweight read/inspection commands. Recommended:
+
+```powershell
+python -m pytest tests/test_llm_agents.py tests/test_research_sweep_script.py tests/test_sweep_summary.py
 ```
 
-Intended behavior:
-- compare expected payoff from honest reporting versus underclaiming
-- account for audit probability and lie penalty
-- use approximate arithmetic, but do not expose chain-of-thought
-- underclaim when expected payoff is higher
-- report honestly when expected audit cost makes deception unattractive
-- produce the same JSON schema:
-  `{"claimed_pie": <number>, "offer": <number>, "public_message": "<string>"}`
+Optionally use small Python snippets to summarize the existing CSV/JSONL outputs.
 
-Important distinction:
-- `risk_aware` = cautious and incentive-aware, may avoid lying.
-- `expected_value` = explicitly self-interested expected-payoff maximizer.
-- `deceptive` = instruction-driven deception regardless of risk.
+## Definition Of Done
 
-Files to inspect:
-- `ultimatum_arena/llm/prompts.py`
-- `ultimatum_arena/llm/agents.py`
-- `tests/test_llm_agents.py`
-- `scripts/run_gemma3_research_sweep.py`
-- `tests/test_research_sweep_script.py`
-- `ultimatum_arena/analysis/sweep_summary.py`
-- `tests/test_sweep_summary.py`
-- `README.md`
-- `CLAUDE.md`
-- `AGENTS.md`
-
-Your task:
-1. Inspect the files above.
-2. Confirm the smallest implementation path.
-3. Do not edit files.
-4. In your final response, provide:
-   - exact files to edit in Stage 2
-   - expected prompt wording principles for `expected_value`
-   - tests needed
-   - whether to add a new preset or extend `risk`
-   - risks/open questions
-
-Constraints:
-- Do not add paid providers.
-- Do not add OpenAI, Anthropic, Gemini API, or cloud clients.
-- Do not add async/concurrency.
-- Do not change environment rules.
-- Do not change action/result schemas unless absolutely necessary.
-- Keep current strategies working.
-
-Definition of done:
-- No code changed.
-- There is a clear plan for implementing `expected_value`.
-
+- Provide a concise diagnosis.
+- Recommend the exact strategy calibration for Stage 2.
+- Confirm whether the current implementation pipeline is working and whether the problem is prompt behavior.

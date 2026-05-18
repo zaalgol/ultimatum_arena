@@ -1,69 +1,57 @@
-# Stage 5 Prompt: Documentation and Final Verification for Expected-Value Strategy
+# Stage 5: Update Documentation And Prepare Full EV Sweep
 
-You are working on the Python project `ultimatum_arena`.
+You are Claude Code working in the `ultimatum_arena` repository.
 
-Goal:
-Update documentation and final checks after adding `expected_value`.
+## Goal
 
-Important constraints:
-- Do not add new features in this stage unless fixing a small doc/test issue.
-- Do not add paid providers.
-- Do not add async/concurrency.
-- Do not commit generated outputs.
-- Keep docs concise and accurate.
+If the expected-value probe from Stage 4 shows useful behavior, update documentation so the current research workflow is clear. Then provide the exact command for the user to run the full `ev` sweep.
 
-Files to inspect:
-- `README.md`
-- `CLAUDE.md`
-- `AGENTS.md`
-- `.claude/settings.local.json`
-- `scripts/run_gemma3_research_sweep.py`
-- `ultimatum_arena/llm/prompts.py`
-- `ultimatum_arena/analysis/sweep_summary.py`
+## Files To Edit
 
-Files to edit if needed:
 - `README.md`
 - `CLAUDE.md`
 - `AGENTS.md`
 
-Documentation updates:
-1. Add `expected_value` to proposer strategy descriptions:
-   - explicitly expected-payoff maximizing
-   - compares honest reporting and underclaiming
-   - should lie when expected deception payoff exceeds expected audit cost
-2. Document the new preset:
+Only edit prompt files if they need small corrections:
 
-```bash
-python scripts/run_gemma3_research_sweep.py --preset ev --model gemma3
-```
+- `prompts/prompt_stage_1.md`
+- `prompts/prompt_stage_2.md`
+- `prompts/prompt_stage_3.md`
+- `prompts/prompt_stage_4.md`
+- `prompts/prompt_stage_5.md`
 
-3. Explain research interpretation:
-   - `deceptive` is instruction-driven deception
-   - `risk_aware` is cautious/incentive-aware and may refuse to lie
-   - `expected_value` is explicit payoff-maximizing adaptation
-   - compare whether `expected_value` deception falls as audit probability or penalty rises
-4. Keep phase boundaries clear:
-   - still local Ollama/Gemma only
-   - no paid provider clients yet
-   - no new game variants yet
-5. Mention any analysis helper/table updates from Stage 4.
+## Documentation Should Include
 
-Verification commands:
+- `expected_value` is a calibrated numeric expected-payoff proposer strategy.
+- `risk_aware` is a cautious incentive-aware strategy that may avoid lying.
+- `deceptive` is an instruction-driven lying baseline.
+- `probe_gemma3_expected_value.py` is the fast calibration check.
+- `run_gemma3_research_sweep.py --preset ev --model gemma3` is the full comparison.
+- Outputs are timestamped under:
+  - `outputs/gemma3_expected_value_probe/`
+  - `outputs/gemma3_research/`
 
-```bash
-python -m pytest
-python scripts/run_gemma3_research_sweep.py --help
-```
-
-Optional manual run if Ollama is available:
+## Commands To Run
 
 ```powershell
-python scripts\run_gemma3_research_sweep.py --preset ev --rounds 5 --seeds 1 --audit-probs 0.0 1.0 --lie-penalties 0 50 --model gemma3
+python -m pytest
 ```
 
-Definition of done:
-- Docs accurately describe `expected_value`.
-- Docs accurately describe the new `ev` preset and current local-only provider state.
-- Full test suite passes.
-- Help command works.
+Do not run the full live Gemma sweep in this documentation stage unless the user explicitly asks.
 
+## Constraints
+
+- Keep documentation concise and accurate.
+- Do not claim paid provider support exists.
+- Do not claim the strategy proves rationality; describe it as prompt-calibrated behavior for research.
+- Do not add Phase 5 game variants.
+
+## Definition Of Done
+
+- Docs describe the calibrated expected-value workflow.
+- Full test suite passes.
+- Provide the user with the exact full-sweep command:
+
+```powershell
+python scripts/run_gemma3_research_sweep.py --preset ev --model gemma3
+```

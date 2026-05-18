@@ -39,6 +39,10 @@ python scripts/run_gemma3_research_sweep.py --preset risk --model gemma3
 python scripts/run_gemma3_research_sweep.py --preset ev --model gemma3
 python scripts/run_gemma3_research_sweep.py --help
 
+# Fast expected-value calibration probe (3 cells, ~3 min — run before the full ev sweep)
+python scripts/probe_gemma3_expected_value.py --model gemma3
+python scripts/probe_gemma3_expected_value.py --model gemma3 --rounds 5 --seed 1
+
 # Optional live Ollama tests, requires Ollama running and gemma3 installed
 $env:RUN_OLLAMA_TESTS="1"
 python -m pytest tests/test_ollama_client.py
@@ -53,6 +57,8 @@ Phase 2 is complete: the repository has an LLM layer with a provider-agnostic `L
 Phase 3A is complete: `OllamaLLMClient` runs Gemma 3 locally through Ollama. Paid provider clients and API key handling are not implemented yet.
 
 Phase 4 is in progress: `run_llm_strategy_sweep()` runs a full research grid (strategies × audit_probabilities × lie_penalties × seeds) with LLM agents, writes per-run logs, a combined CSV, an aggregate CSV (means across seeds), a manifest, and strategy plots. `scripts/run_gemma3_research_sweep.py` is the CLI entry point with presets `smoke`, `research`, `risk`, and `ev`. Five LLM proposer strategies are available: `honest_fair`, `self_interested`, `deceptive`, `risk_aware`, and `expected_value`. The `--preset ev` sweep compares four proposer strategies (`honest_fair`, `deceptive`, `risk_aware`, `expected_value`) across 4 audit probabilities, 3 penalties, and 3 seeds (144 runs). `summarize_strategy_by_audit_risk()` and `summarize_adaptive_strategies()` in `ultimatum_arena.analysis` are pure helpers to inspect adaptive deception trends; both work with in-memory and CSV-loaded rows.
+
+The `expected_value` strategy prompt has been calibrated through a staged prompt-engineering process. It uses a worked numerical example and an explicit `IF/ELSE` decision rule to instruct the model to underclaim (~55–65% of true pie) when `audit_prob × lie_penalty = 0`, and to report honestly when audit cost is high. Probe results with Gemma 3 show `deception_rate = 1.0` at zero audit cost and a measurable payoff gradient as penalties rise. `scripts/probe_gemma3_expected_value.py` is the fast calibration check (3 audit/penalty cells, ~3 minutes); outputs go under `outputs/gemma3_expected_value_probe/<timestamp>/`.
 
 Local Gemma 3 setup has been verified with Ollama: `gemma3:latest` and `gemma3:4b` are available locally, and `RUN_OLLAMA_TESTS=1 python -m pytest tests/test_ollama_client.py` passes when Ollama is running.
 
@@ -97,7 +103,8 @@ Do not rewrite these interfaces. Future agents should subclass `BaseProposer` or
 - `ultimatum_arena/storage/jsonl.py`: JSONL/JSON persistence helpers.
 - `ultimatum_arena/llm/`: provider-agnostic LLM layer, fake client, parser, prompts, LLM agents, and local Ollama client.
 - `scripts/run_gemma3_strategy_set.ps1`: sequentially runs the Gemma demo for `honest_fair`, `self_interested`, and `deceptive` proposer strategies.
-- `scripts/run_gemma3_research_sweep.py`: Phase 4 CLI — presets `smoke`, `research`, and `risk`, all dimensions overridable; writes full output tree including plots and aggregate CSV. When `risk_aware` is included, prints an additional deception-by-audit-risk table.
+- `scripts/run_gemma3_research_sweep.py`: Phase 4 CLI — presets `smoke`, `research`, `risk`, and `ev`, all dimensions overridable; writes full output tree including plots and aggregate CSV. When `risk_aware` is included, prints an additional deception-by-audit-risk table.
+- `scripts/probe_gemma3_expected_value.py`: fast calibration probe for the `expected_value` strategy — runs 3 audit/penalty cells (zero risk, moderate, maximum) with small defaults (10 rounds, seed 1); prints a compact results table; exposes `_probe_cells()` and `_parse_args()` for testing. Outputs under `outputs/gemma3_expected_value_probe/<timestamp>/`.
 
 ## Phase 1 Demo
 

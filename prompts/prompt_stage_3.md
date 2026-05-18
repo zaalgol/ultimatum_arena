@@ -1,110 +1,92 @@
-# Stage 3 Prompt: Add Expected-Value Research Preset
+# Stage 3: Add A Fast Expected-Value Probe Script
 
-You are working on the Python project `ultimatum_arena`.
+You are Claude Code working in the `ultimatum_arena` repository.
 
-Goal:
-Add a focused research preset that compares `deceptive`, `risk_aware`, and `expected_value`.
+## Goal
 
-Important constraints:
-- Do not remove existing `smoke`, `research`, or `risk` presets.
-- Do not make `smoke` slow.
-- Do not add paid providers.
-- Do not add async/concurrency.
-- Keep CLI behavior backward compatible.
+Add a small diagnostic script that runs only a few Gemma rounds for the `expected_value` strategy across two or three audit/penalty conditions. This lets us validate prompt calibration without running the full 144-run `ev` sweep.
 
-Files to inspect:
+## Files To Inspect
+
+- `scripts/run_gemma3_hidden_pie_demo.py`
 - `scripts/run_gemma3_research_sweep.py`
-- `tests/test_research_sweep_script.py`
 - `ultimatum_arena/runners/llm_sweep.py`
-
-Files to edit:
-- `scripts/run_gemma3_research_sweep.py`
+- `ultimatum_arena/analysis/sweep_summary.py`
 - `tests/test_research_sweep_script.py`
 
-Preset design:
-Add a new preset:
+## Files To Create Or Edit
 
-```text
-ev
+Preferred:
+
+- Create `scripts/probe_gemma3_expected_value.py`
+- Add tests in `tests/test_research_sweep_script.py` or a new focused test file if cleaner.
+
+## Expected Behavior
+
+The script should:
+
+- Use local Ollama/Gemma only.
+- Require no API keys.
+- Run `expected_value` only.
+- Use small defaults:
+  - `rounds=10`
+  - `seeds=[1]`
+  - audit/penalty cells:
+    - `(audit_prob=0.0, lie_penalty=0.0)`
+    - `(audit_prob=0.25, lie_penalty=25.0)`
+    - `(audit_prob=1.0, lie_penalty=50.0)`
+- Write outputs under `outputs/gemma3_expected_value_probe/<timestamp>/`
+- Print a compact table:
+  - audit_prob
+  - lie_penalty
+  - deception_rate
+  - acceptance_rate
+  - proposer_mean_payoff
+  - responder_mean_payoff
+- Print the output directory.
+
+It may reuse `run_llm_strategy_sweep()` rather than duplicating runner logic.
+
+## CLI Options
+
+Support at least:
+
+```powershell
+python scripts/probe_gemma3_expected_value.py --model gemma3
+python scripts/probe_gemma3_expected_value.py --model gemma3 --rounds 5 --seed 1
 ```
 
-Recommended dimensions:
-- strategies:
-  - `honest_fair`
-  - `deceptive`
-  - `risk_aware`
-  - `expected_value`
-- audit probabilities:
-  - `[0.0, 0.25, 0.5, 1.0]`
-- lie penalties:
-  - `[0.0, 25.0, 50.0]`
-- seeds:
-  - `[1, 2, 3]`
-- rounds:
-  - `50`
+## Tests To Add Or Update
 
-Total runs:
+Do not require Ollama in automated tests.
 
-```text
-4 strategies * 4 audit probs * 3 penalties * 3 seeds = 144 runs
-```
+Add tests for:
 
-Expected CLI:
+- argument parsing defaults
+- output root default
+- configured cells contain low-risk and high-risk cases
+- the script can be imported without side effects
 
-```bash
-python scripts/run_gemma3_research_sweep.py --preset ev --model gemma3
-```
+If script internals are hard to test, expose small pure helpers like `_probe_cells()` and `_parse_args()`.
 
-Overrides must still work:
+## Commands To Run
 
-```bash
-python scripts/run_gemma3_research_sweep.py --preset ev --rounds 10 --seeds 1
-```
-
-Expected output:
-- same output layout as existing research sweep:
-  - `runs/`
-  - `combined_summary.csv`
-  - `aggregate_by_strategy_audit_penalty.csv`
-  - `manifest.json`
-  - `plots/`
-- manifest should record `preset = "ev"`.
-
-Script output:
-- Existing summary table should include `expected_value`.
-- If a risk/EV audit-risk table exists, include `expected_value` when present or add a second table:
-
-```text
-Expected-value deception by audit probability
-```
-
-Keep output concise.
-
-Tests:
-- `ev` is an accepted preset.
-- `ev` includes `expected_value`.
-- `ev` includes `honest_fair`, `deceptive`, and `risk_aware`.
-- `ev` dimensions match the design above.
-- total runs for `ev` is 144.
-- existing presets remain unchanged.
-- argument overrides still parse correctly.
-
-Commands to run:
-
-```bash
-python scripts/run_gemma3_research_sweep.py --help
+```powershell
 python -m pytest tests/test_research_sweep_script.py
 python -m pytest
 ```
 
-Optional manual smoke, only if Ollama is available:
+Do not run the live Gemma probe unless asked separately.
 
-```powershell
-python scripts\run_gemma3_research_sweep.py --preset ev --rounds 5 --seeds 1 --audit-probs 0.0 1.0 --lie-penalties 0 50 --model gemma3
-```
+## Constraints
 
-Definition of done:
-- `--preset ev` exists and is documented in CLI help.
-- Existing presets still work.
+- No paid API providers.
+- No long sweep in this stage.
+- Do not change existing demo script behavior.
+- Keep this as a diagnostic research utility, not a new framework.
+
+## Definition Of Done
+
+- A fast expected-value probe script exists.
+- Tests cover its pure/config behavior without requiring Ollama.
 - Full test suite passes.
-

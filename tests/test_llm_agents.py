@@ -965,3 +965,61 @@ class TestExpectedValueStrategy:
     def test_invalid_strategy_still_raises(self):
         with pytest.raises(ValueError, match="Unknown strategy"):
             LLMProposer(FakeLLMClient(), strategy="expected_value_extra")
+
+    # ------------------------------------------------------------------
+    # New calibration tests (Stage 2)
+    # ------------------------------------------------------------------
+
+    def test_expected_value_prompt_contains_payoff_formula(self):
+        """Prompt must include the explicit expected-payoff formula."""
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        assert "true_pie - offer" in prompt
+
+    def test_expected_value_prompt_contains_candidate_options(self):
+        """Prompt must list multiple named candidate actions."""
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        lower = prompt.lower()
+        # At least two labelled candidates must be present
+        assert "honest offer" in lower or "candidate" in lower or (
+            "a." in lower and "b." in lower
+        )
+
+    def test_expected_value_prompt_contains_underclaim_fraction(self):
+        """Prompt must give a concrete underclaim fraction range."""
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        assert (
+            "60%-70%" in prompt or "60-70%" in prompt
+            or "55%-65%" in prompt or "55-65%" in prompt
+        )
+
+    def test_expected_value_prompt_contains_fair_offer_guidance(self):
+        """Prompt must specify a fair-looking offer range for acceptance."""
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        assert "40%-50%" in prompt or "fair-looking" in prompt.lower()
+
+    def test_expected_value_prompt_warns_against_overpaying(self):
+        """Prompt must warn that offers above ~55% of claimed_pie are excessive."""
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        lower = prompt.lower()
+        assert "55%" in prompt or "overpay" in lower
+
+    def test_expected_value_prompt_low_audit_implies_underclaim(self):
+        """Prompt must state that zero audit cost makes underclaiming dominant."""
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        lower = prompt.lower()
+        assert "0" in prompt and "underclaiming" in lower or "profitable underclaim" in lower
+
+    def test_expected_value_prompt_has_high_risk_example(self):
+        """Prompt must show why honest reporting beats lying at high audit risk."""
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        lower = prompt.lower()
+        assert "high-risk example" in lower
+        assert "100%" in prompt
+        assert "penalty = 50" in lower
+
+    def test_expected_value_prompt_high_risk_requires_honesty(self):
+        """Prompt must explicitly require honest reporting in high-risk cases."""
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="expected_value")
+        lower = prompt.lower()
+        assert "must report honestly" in lower
+        assert "do not underclaim" in lower

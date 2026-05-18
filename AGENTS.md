@@ -35,6 +35,10 @@ python scripts/run_gemma3_research_sweep.py --preset research
 python scripts/run_gemma3_research_sweep.py --preset risk --model gemma3
 python scripts/run_gemma3_research_sweep.py --preset ev --model gemma3
 python scripts/run_gemma3_research_sweep.py --help
+
+# Fast expected-value calibration probe (3 cells, no long sweep needed)
+python scripts/probe_gemma3_expected_value.py --model gemma3
+python scripts/probe_gemma3_expected_value.py --model gemma3 --rounds 5 --seed 1
 ```
 
 ## Architecture
@@ -80,10 +84,11 @@ HiddenPieAuditEnv.step()                  →  RoundResult
 **Phase 3A** (complete): `OllamaLLMClient`, Gemma strategy profiles, `run_gemma3_hidden_pie_demo.py`, `run_gemma3_strategy_set.ps1`.
 
 **Phase 4** (in progress): `run_llm_strategy_sweep()`, `run_gemma3_research_sweep.py` with presets `smoke`, `research`, `risk`, `ev`, aggregate CSV, strategy plots. Five LLM strategies available. Analysis helpers: `summarize_strategy_by_audit_risk()` and `summarize_adaptive_strategies()`.
-- `deceptive` = instruction-driven; always lies regardless of audit risk.
-- `risk_aware` = cautious/incentive-aware; may avoid lying even when penalty is zero.
-- `expected_value` = explicit payoff maximizer; compares honest vs underclaiming using expected audit cost; should lie when surplus > cost.
-- Use `--preset ev` to compare four proposer strategies (144 runs).
+- `deceptive` = instruction-driven lying baseline; always underclaims (~60–70% of true pie) regardless of audit risk.
+- `risk_aware` = cautious/incentive-aware; told to weigh expected audit cost; in practice may avoid lying even at zero penalty.
+- `expected_value` = prompt-calibrated numeric maximizer; uses a worked example and explicit `IF/ELSE` rule; reliably underclaims at zero audit cost (Gemma 3 probe: `deception_rate = 1.0`); may not switch to honest at high audit risk on small models.
+- `probe_gemma3_expected_value.py` = fast 3-cell calibration check; run before committing to the 144-run `ev` sweep. Outputs under `outputs/gemma3_expected_value_probe/`.
+- Use `--preset ev` to compare four proposer strategies (144 runs). Outputs under `outputs/gemma3_research/`.
 - Still local Ollama/Gemma only; no paid provider clients.
 
 ## Extending with new agents
