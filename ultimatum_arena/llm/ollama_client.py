@@ -84,6 +84,12 @@ class OllamaLLMClient:
                 f"Cannot reach Ollama at {self.base_url}. "
                 "Make sure Ollama is running (`ollama serve`)."
             ) from exc
+        except TimeoutError as exc:
+            raise OllamaConnectionError(
+                f"Ollama request timed out after {self.timeout}s. "
+                "The model may be loading or the prompt is too long. "
+                "Try increasing the timeout or rerunning."
+            ) from exc
 
         try:
             data = json.loads(raw)

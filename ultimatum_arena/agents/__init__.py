@@ -5,6 +5,7 @@ from ultimatum_arena.agents.proposers import (
     HonestFairProposer,
     GreedyHonestProposer,
     LyingGreedyProposer,
+    ExpectedValueProposer,
 )
 from ultimatum_arena.agents.responders import ThresholdResponder, SuspiciousResponder
 
@@ -14,6 +15,7 @@ __all__ = [
     "HonestFairProposer",
     "GreedyHonestProposer",
     "LyingGreedyProposer",
+    "ExpectedValueProposer",
     "ThresholdResponder",
     "SuspiciousResponder",
     "LLMProposer",

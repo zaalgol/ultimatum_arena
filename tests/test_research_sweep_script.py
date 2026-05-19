@@ -328,3 +328,196 @@ class TestProbeManifest:
         assert manifest["model"] == "gemma3"
         assert manifest["n_rounds"] == 5
         assert manifest["seeds"] == [42]
+
+
+# ---------------------------------------------------------------------------
+# Tests for scripts/probe_expected_value_comparison.py (no Ollama required)
+# ---------------------------------------------------------------------------
+
+from unittest.mock import patch
+
+from scripts.probe_expected_value_comparison import (  # noqa: E402
+    DEFAULT_LLM_STRATEGIES,
+    OUTPUT_ROOT as COMPARISON_OUTPUT_ROOT,
+    _parse_args as _comparison_parse_args,
+    _probe_cells as _comparison_probe_cells,
+    _save_comparison_manifest,
+    main as comparison_main,
+)
+
+
+class TestComparisonScriptImport:
+    def test_can_import_without_side_effects(self):
+        """Importing the module must not connect to Ollama or write files."""
+        import scripts.probe_expected_value_comparison  # noqa: F401
+
+
+class TestComparisonProbeCells:
+    def test_returns_three_cells(self):
+        assert len(_comparison_probe_cells()) == 3
+
+    def test_contains_zero_audit_zero_penalty(self):
+        assert (0.0, 0.0) in _comparison_probe_cells()
+
+    def test_contains_high_risk_cell(self):
+        assert (1.0, 50.0) in _comparison_probe_cells()
+
+    def test_contains_mid_risk_cell(self):
+        cells = _comparison_probe_cells()
+        audit_probs = [c[0] for c in cells]
+        assert any(0.0 < p < 1.0 for p in audit_probs)
+
+    def test_all_audit_probs_in_range(self):
+        for audit_prob, _ in _comparison_probe_cells():
+            assert 0.0 <= audit_prob <= 1.0
+
+    def test_all_penalties_non_negative(self):
+        for _, penalty in _comparison_probe_cells():
+            assert penalty >= 0.0
+
+
+class TestComparisonParseArgs:
+    def test_default_model(self):
+        args = _comparison_parse_args([])
+        assert args.model == "gemma3"
+
+    def test_default_rounds(self):
+        args = _comparison_parse_args([])
+        assert args.rounds == 10
+
+    def test_default_seed(self):
+        args = _comparison_parse_args([])
+        assert args.seed == 1
+
+    def test_default_temperature(self):
+        args = _comparison_parse_args([])
+        assert args.temperature == 0.2
+
+    def test_model_override(self):
+        args = _comparison_parse_args(["--model", "gemma3:4b"])
+        assert args.model == "gemma3:4b"
+
+    def test_rounds_override(self):
+        args = _comparison_parse_args(["--rounds", "5"])
+        assert args.rounds == 5
+
+    def test_seed_override(self):
+        args = _comparison_parse_args(["--seed", "42"])
+        assert args.seed == 42
+
+
+class TestComparisonOutputRoot:
+    def test_output_root_under_outputs(self):
+        assert "outputs" in str(COMPARISON_OUTPUT_ROOT)
+
+    def test_output_root_contains_probe_name(self):
+        assert "expected_value_comparison_probe" in str(COMPARISON_OUTPUT_ROOT)
+
+
+class TestDefaultLLMStrategies:
+    def test_expected_value_in_default_strategies(self):
+        assert "expected_value" in DEFAULT_LLM_STRATEGIES
+
+    def test_payoff_table_in_default_strategies(self):
+        assert "payoff_table" in DEFAULT_LLM_STRATEGIES
+
+    def test_deceptive_in_default_strategies(self):
+        assert "deceptive" in DEFAULT_LLM_STRATEGIES
+
+    def test_calculator_not_in_llm_strategies(self):
+        assert "calculator_expected_value" not in DEFAULT_LLM_STRATEGIES
+
+
+class TestComparisonManifest:
+    def test_manifest_records_cells_and_strategies(self, tmp_path):
+        import json
+
+        args = _comparison_parse_args(["--model", "gemma3", "--rounds", "5", "--seed", "42"])
+        cells = _comparison_probe_cells()
+        llm_strategies = DEFAULT_LLM_STRATEGIES
+
+        _save_comparison_manifest(tmp_path, cells=cells, llm_strategies=llm_strategies, args=args)
+
+        manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["n_cells"] == len(cells)
+        assert manifest["model"] == "gemma3"
+        assert manifest["n_rounds"] == 5
+        assert manifest["seeds"] == [42]
+        assert manifest["calculator_strategy"] == "calculator_expected_value"
+        assert "calculator_expected_value" in manifest["all_strategies"]
+        for s in llm_strategies:
+            assert s in manifest["llm_strategies"]
+        assert manifest["cells"] == [
+            {"audit_prob": ap, "lie_penalty": lp} for ap, lp in cells
+        ]
+
+
+class TestComparisonMainCellsNotCartesian:
+    """main() must call run_llm_strategy_sweep once per paired cell, not a Cartesian product."""
+
+    def _fake_calc_rows(self, cells, *, n_rounds, seed, output_dir):
+        return [
+            {"strategy": "calculator_expected_value", "audit_prob": ap, "lie_penalty": lp}
+            for ap, lp in cells
+        ]
+
+    def _patched_main(self, mock_sweep):
+        """Context manager that patches all I/O so main() never writes to outputs/."""
+        fake_row = {"strategy": "expected_value", "audit_prob": 0.0, "lie_penalty": 0.0}
+        return (
+            patch("scripts.probe_expected_value_comparison._run_calculator_rows", side_effect=self._fake_calc_rows),
+            patch(
+                "scripts.probe_expected_value_comparison.run_llm_strategy_sweep",
+                return_value=[fake_row],
+            ),
+            patch("scripts.probe_expected_value_comparison._save_combined_csv"),
+            patch("scripts.probe_expected_value_comparison._save_comparison_manifest"),
+            patch("scripts.probe_expected_value_comparison.OllamaLLMClient"),
+        )
+
+    def test_llm_sweep_called_once_per_cell(self):
+        with (
+            patch("scripts.probe_expected_value_comparison._run_calculator_rows", side_effect=self._fake_calc_rows),
+            patch(
+                "scripts.probe_expected_value_comparison.run_llm_strategy_sweep",
+                return_value=[{"strategy": "expected_value", "audit_prob": 0.0, "lie_penalty": 0.0}],
+            ) as mock_sweep,
+            patch("scripts.probe_expected_value_comparison._save_combined_csv"),
+            patch("scripts.probe_expected_value_comparison._save_comparison_manifest"),
+            patch("scripts.probe_expected_value_comparison.OllamaLLMClient"),
+        ):
+            comparison_main(["--rounds", "1"])
+
+        assert mock_sweep.call_count == len(_comparison_probe_cells())
+
+    def test_each_llm_call_uses_single_audit_prob(self):
+        with (
+            patch("scripts.probe_expected_value_comparison._run_calculator_rows", side_effect=self._fake_calc_rows),
+            patch(
+                "scripts.probe_expected_value_comparison.run_llm_strategy_sweep",
+                return_value=[{"strategy": "expected_value", "audit_prob": 0.0, "lie_penalty": 0.0}],
+            ) as mock_sweep,
+            patch("scripts.probe_expected_value_comparison._save_combined_csv"),
+            patch("scripts.probe_expected_value_comparison._save_comparison_manifest"),
+            patch("scripts.probe_expected_value_comparison.OllamaLLMClient"),
+        ):
+            comparison_main(["--rounds", "1"])
+
+        for c in mock_sweep.call_args_list:
+            assert len(c.kwargs["audit_probabilities"]) == 1
+
+    def test_each_llm_call_uses_single_lie_penalty(self):
+        with (
+            patch("scripts.probe_expected_value_comparison._run_calculator_rows", side_effect=self._fake_calc_rows),
+            patch(
+                "scripts.probe_expected_value_comparison.run_llm_strategy_sweep",
+                return_value=[{"strategy": "expected_value", "audit_prob": 0.0, "lie_penalty": 0.0}],
+            ) as mock_sweep,
+            patch("scripts.probe_expected_value_comparison._save_combined_csv"),
+            patch("scripts.probe_expected_value_comparison._save_comparison_manifest"),
+            patch("scripts.probe_expected_value_comparison.OllamaLLMClient"),
+        ):
+            comparison_main(["--rounds", "1"])
+
+        for c in mock_sweep.call_args_list:
+            assert len(c.kwargs["lie_penalties"]) == 1

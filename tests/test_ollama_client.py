@@ -194,6 +194,21 @@ class TestOllamaLLMClientConnectionError:
         with pytest.raises(OllamaConnectionError, match="ollama serve"):
             client.generate("hello")
 
+    @mock.patch("urllib.request.urlopen")
+    def test_bare_timeout_error_raises_connection_error(self, mock_urlopen):
+        """Python 3.3+ socket.timeout (TimeoutError) must be caught and re-raised."""
+        mock_urlopen.side_effect = TimeoutError("timed out")
+        client = OllamaLLMClient(timeout=1.0)
+        with pytest.raises(OllamaConnectionError, match="timed out"):
+            client.generate("hello")
+
+    @mock.patch("urllib.request.urlopen")
+    def test_timeout_error_message_suggests_rerun(self, mock_urlopen):
+        mock_urlopen.side_effect = TimeoutError("timed out")
+        client = OllamaLLMClient(timeout=1.0)
+        with pytest.raises(OllamaConnectionError, match="120|timed out|rerun|timeout"):
+            client.generate("hello")
+
 
 class TestOllamaLLMClientModelNotFound:
     @mock.patch("urllib.request.urlopen")

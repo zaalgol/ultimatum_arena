@@ -2,32 +2,32 @@
 
 ## Findings
 
-### P2 - Probe script runs 9 cells while documentation/tests promise 3 paired cells
+### P2 - `ExpectedValueProposer` accepts invalid fraction parameters and fails later in `act()`
 
-File: `scripts/probe_gemma3_expected_value.py`, lines 128-154
+File: `ultimatum_arena/agents/proposers.py`, lines 100-110
 
-`_probe_cells()` defines three intended `(audit_prob, lie_penalty)` pairs, but `main()` splits those pairs into separate `audit_probs` and `lie_penalties` lists and passes them to `run_llm_strategy_sweep()`. That runner performs a Cartesian grid over all audit probabilities and all penalties, so the probe runs `3 × 3 × 1 = 9` cells instead of the promised 3 cells. This makes the "fast" probe about three times larger, produces extra conditions not listed in the stage prompt/docs, and makes the printed/documented interpretation misleading.
+`ExpectedValueProposer` exposes configurable fractions, but `__init__()` does not validate them. Values such as `offer_fraction_of_claim=1.5`, `moderate_claim_fraction=-0.2`, or `honest_offer_fraction=1.2` can create invalid `ProposerAction`s later (`offer > claimed_pie`, negative/zero `claimed_pie`, etc.). Existing heuristic agents validate comparable public knobs (`LyingGreedyProposer.claimed_fraction`), and this new class is meant to be a stable research baseline, so it should fail early with clear `ValueError`s.
 
-Suggested fix: either run the three cells explicitly one pair at a time, or add a small probe-specific loop that calls `run_llm_strategy_sweep()` with one audit probability and one penalty per cell and concatenates the rows. Add a regression test that monkeypatches `run_llm_strategy_sweep()` and asserts the script invokes exactly the three `_probe_cells()` pairs, not the Cartesian product.
+Suggested fix: validate all fractions in `__init__()`. At minimum require `0 <= honest_offer_fraction <= 1`, `0 < moderate_claim_fraction <= 1`, `0 < aggressive_claim_fraction <= 1`, and `0 <= offer_fraction_of_claim <= 1`. Add tests for invalid values.
 
 ### P2 - Hook settings were changed in an unrelated way
 
-File: `.claude/settings.local.json`, lines 21-39
+File: `.claude/settings.local.json`, lines 7-40
 
-This change removes the previous async/rewake behavior from both hooks and adds very specific command permissions. That is unrelated to calibrating the expected-value strategy or adding the probe script, and it changes the developer workflow: the CLAUDE.md updater now blocks synchronously, and the review hook no longer has the explicit rewake behavior for surfacing review findings. Unless this was intentional, revert the hook-behavior edits and keep only changes that are necessary for this task.
+This change again alters the local Claude workflow while the requested feature work was expected-value baselines/probes. It adds broad curl/ollama/temp read permissions and removes the previous async/rewake hook behavior. That is unrelated to the application code and changes how future tool hooks behave. Unless this was explicitly intentional, revert the `.claude/settings.local.json` changes in this feature branch.
 
-### P3 - Probe script has mojibake in user-facing error messages
+### P3 - Docs state transient Gemma probe outcomes as if they are stable project facts
 
-File: `scripts/probe_gemma3_expected_value.py`, lines 157, 162, 166
+Files: `README.md`, `CLAUDE.md`, `AGENTS.md`
 
-The arrow character is rendered as `â†’` in error messages. This does not break execution, but it looks broken in the terminal. Replace it with ASCII `->` or save the file consistently as UTF-8 and verify the terminal display.
+The docs say things like Gemma 3 `payoff_table` reports honestly in all observed rounds and `expected_value` reliably underclaims. Those may be true for one local run, but they depend on model version, Ollama behavior, temperature, prompt changes, and seed. Prefer wording like "in the latest local probe" with the exact output path/date if you want to document an observation, or describe intended interpretation without freezing one run as a permanent fact.
 
 ## Tests Run
 
-- `python -m pytest tests/test_llm_agents.py tests/test_research_sweep_script.py` -> 196 passed
-- `python scripts\probe_gemma3_expected_value.py --help` -> help command works
-- `python -m pytest` -> 422 passed, 2 skipped
+- `python -m pytest tests/test_agents.py tests/test_llm_agents.py tests/test_research_sweep_script.py tests/test_ollama_client.py` -> 282 passed, 2 skipped
+- `python scripts\probe_expected_value_comparison.py --help` -> help command works
+- `python -m pytest` -> 473 passed, 2 skipped
 
 ## Summary
 
-The calibrated prompt and test coverage are broadly moving in the right direction, and the suite is green. The main blocker before committing is the probe script's accidental Cartesian expansion: it is not actually the advertised 3-cell diagnostic probe. The hook settings change also looks unrelated and should be reverted unless there is a separate reason for it.
+The main application changes are structurally sound: the deterministic baseline, `payoff_table` prompt, and comparison probe are in place and covered by tests. I would fix parameter validation and revert the unrelated hook-settings churn before committing.

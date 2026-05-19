@@ -1,10 +1,20 @@
-# Stage 5: Update Documentation And Prepare Full EV Sweep
+# Stage 5: Documentation And Full Sweep Recommendation
 
 You are Claude Code working in the `ultimatum_arena` repository.
 
 ## Goal
 
-If the expected-value probe from Stage 4 shows useful behavior, update documentation so the current research workflow is clear. Then provide the exact command for the user to run the full `ev` sweep.
+Update documentation to describe the expected-value baseline/probe workflow and give a clear recommendation for the next full sweep.
+
+## Files To Inspect
+
+- `README.md`
+- `CLAUDE.md`
+- `AGENTS.md`
+- `scripts/probe_expected_value_comparison.py`
+- `scripts/probe_gemma3_expected_value.py`
+- `ultimatum_arena/agents/heuristics.py`
+- `ultimatum_arena/llm/prompts.py`
 
 ## Files To Edit
 
@@ -12,24 +22,14 @@ If the expected-value probe from Stage 4 shows useful behavior, update documenta
 - `CLAUDE.md`
 - `AGENTS.md`
 
-Only edit prompt files if they need small corrections:
-
-- `prompts/prompt_stage_1.md`
-- `prompts/prompt_stage_2.md`
-- `prompts/prompt_stage_3.md`
-- `prompts/prompt_stage_4.md`
-- `prompts/prompt_stage_5.md`
-
 ## Documentation Should Include
 
-- `expected_value` is a calibrated numeric expected-payoff proposer strategy.
-- `risk_aware` is a cautious incentive-aware strategy that may avoid lying.
-- `deceptive` is an instruction-driven lying baseline.
-- `probe_gemma3_expected_value.py` is the fast calibration check.
-- `run_gemma3_research_sweep.py --preset ev --model gemma3` is the full comparison.
-- Outputs are timestamped under:
-  - `outputs/gemma3_expected_value_probe/`
-  - `outputs/gemma3_research/`
+- `ExpectedValueProposer` is deterministic and non-LLM.
+- It is a benchmark for whether the game incentives create expected behavior.
+- `expected_value` is a Gemma prompt strategy that may still fail to adapt.
+- `payoff_table` is a structured Gemma prompt strategy intended to follow candidate payoff comparisons.
+- `probe_expected_value_comparison.py` is the fast diagnostic before full sweeps.
+- Where outputs are saved.
 
 ## Commands To Run
 
@@ -37,21 +37,17 @@ Only edit prompt files if they need small corrections:
 python -m pytest
 ```
 
-Do not run the full live Gemma sweep in this documentation stage unless the user explicitly asks.
+Do not run long live Gemma sweeps in this documentation stage unless explicitly asked.
 
 ## Constraints
 
-- Keep documentation concise and accurate.
-- Do not claim paid provider support exists.
-- Do not claim the strategy proves rationality; describe it as prompt-calibrated behavior for research.
+- Keep docs concise.
+- Do not claim Gemma is rational unless probe results support it.
+- Do not add paid providers.
 - Do not add Phase 5 game variants.
 
 ## Definition Of Done
 
-- Docs describe the calibrated expected-value workflow.
+- Docs describe the calculator baseline and payoff-table probe workflow.
 - Full test suite passes.
-- Provide the user with the exact full-sweep command:
-
-```powershell
-python scripts/run_gemma3_research_sweep.py --preset ev --model gemma3
-```
+- Provide exact recommended next command, depending on Stage 4 results.

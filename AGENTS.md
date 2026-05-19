@@ -39,6 +39,10 @@ python scripts/run_gemma3_research_sweep.py --help
 # Fast expected-value calibration probe (3 cells, no long sweep needed)
 python scripts/probe_gemma3_expected_value.py --model gemma3
 python scripts/probe_gemma3_expected_value.py --model gemma3 --rounds 5 --seed 1
+
+# EV comparison probe: deterministic calculator_expected_value baseline vs Gemma strategies
+python scripts/probe_expected_value_comparison.py --model gemma3
+python scripts/probe_expected_value_comparison.py --model gemma3 --rounds 5 --seed 1
 ```
 
 ## Architecture
@@ -73,7 +77,7 @@ HiddenPieAuditEnv.step()                  →  RoundResult
 
 **`storage/jsonl.py`** — `append_result` / `load_results` (JSONL); `save_summary` (JSON).
 
-**`llm/`** — Phase 2/3 LLM layer: `LLMClient` protocol, `FakeLLMClient`, prompt builders, parser, `LLMProposer`/`LLMResponder`, `OllamaLLMClient`. `LLMProposer` accepts five strategies: `honest_fair`, `self_interested`, `deceptive`, `risk_aware`, `expected_value`.
+**`llm/`** — Phase 2/3 LLM layer: `LLMClient` protocol, `FakeLLMClient`, prompt builders, parser, `LLMProposer`/`LLMResponder`, `OllamaLLMClient`. `LLMProposer` accepts six strategies: `honest_fair`, `self_interested`, `deceptive`, `risk_aware`, `expected_value`, `payoff_table`. `OllamaLLMClient` catches bare `TimeoutError` (Python 3.3+ socket timeout) and re-raises as `OllamaConnectionError`.
 
 ## Phase boundaries
 
@@ -83,11 +87,14 @@ HiddenPieAuditEnv.step()                  →  RoundResult
 
 **Phase 3A** (complete): `OllamaLLMClient`, Gemma strategy profiles, `run_gemma3_hidden_pie_demo.py`, `run_gemma3_strategy_set.ps1`.
 
-**Phase 4** (in progress): `run_llm_strategy_sweep()`, `run_gemma3_research_sweep.py` with presets `smoke`, `research`, `risk`, `ev`, aggregate CSV, strategy plots. Five LLM strategies available. Analysis helpers: `summarize_strategy_by_audit_risk()` and `summarize_adaptive_strategies()`.
+**Phase 4** (in progress): `run_llm_strategy_sweep()`, `run_gemma3_research_sweep.py` with presets `smoke`, `research`, `risk`, `ev`, aggregate CSV, strategy plots. Six LLM strategies available. Analysis helpers: `summarize_strategy_by_audit_risk()` and `summarize_adaptive_strategies()`.
 - `deceptive` = instruction-driven lying baseline; always underclaims (~60–70% of true pie) regardless of audit risk.
 - `risk_aware` = cautious/incentive-aware; told to weigh expected audit cost; in practice may avoid lying even at zero penalty.
-- `expected_value` = prompt-calibrated numeric maximizer; uses a worked example and explicit `IF/ELSE` rule; reliably underclaims at zero audit cost (Gemma 3 probe: `deception_rate = 1.0`); may not switch to honest at high audit risk on small models.
-- `probe_gemma3_expected_value.py` = fast 3-cell calibration check; run before committing to the 144-run `ev` sweep. Outputs under `outputs/gemma3_expected_value_probe/`.
+- `expected_value` = prompt-calibrated numeric maximizer; uses a worked example and explicit `IF/ELSE` rule; in local Gemma 3 probes, tends to underclaim at zero audit cost — verify with `probe_expected_value_comparison.py`, behaviour is model- and temperature-dependent.
+- `payoff_table` = structured A/B/C candidate table; delegates arithmetic to the model; in local Gemma 3 probes, tended toward honest reporting regardless of audit risk — model-dependent observation, retest before treating as fact.
+- `ExpectedValueProposer` = deterministic non-LLM proposer; evaluates 3 candidates via the exact EV formula; correct incentive behavior confirmed by probe. Use as ground-truth benchmark.
+- `probe_gemma3_expected_value.py` = fast 3-cell calibration check for `expected_value`; run before committing to the 144-run `ev` sweep. Outputs under `outputs/gemma3_expected_value_probe/`.
+- `probe_expected_value_comparison.py` = comparison probe; runs `calculator_expected_value` + `expected_value` + `payoff_table` + `deceptive` across 3 cells; recommended first step before any new full sweep. Outputs under `outputs/expected_value_comparison_probe/`.
 - Use `--preset ev` to compare four proposer strategies (144 runs). Outputs under `outputs/gemma3_research/`.
 - Still local Ollama/Gemma only; no paid provider clients.
 

@@ -1023,3 +1023,63 @@ class TestExpectedValueStrategy:
         lower = prompt.lower()
         assert "must report honestly" in lower
         assert "do not underclaim" in lower
+
+
+# ---------------------------------------------------------------------------
+# payoff_table strategy
+# ---------------------------------------------------------------------------
+
+class TestPayoffTableStrategy:
+    def test_payoff_table_in_valid_strategies(self):
+        assert "payoff_table" in VALID_STRATEGIES
+
+    def test_llm_proposer_accepts_payoff_table(self):
+        LLMProposer(FakeLLMClient(), strategy="payoff_table")  # must not raise
+
+    def test_payoff_table_prompt_contains_candidate_labels(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="payoff_table")
+        assert "A." in prompt
+        assert "B." in prompt
+        assert "C." in prompt
+
+    def test_payoff_table_prompt_contains_65_percent(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="payoff_table")
+        assert "65%" in prompt
+
+    def test_payoff_table_prompt_contains_55_percent(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="payoff_table")
+        assert "55%" in prompt
+
+    def test_payoff_table_prompt_contains_45_percent(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="payoff_table")
+        assert "45%" in prompt
+
+    def test_payoff_table_prompt_contains_formula(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="payoff_table")
+        assert "audit_probability * lie_penalty" in prompt
+
+    def test_payoff_table_prompt_says_choose_highest_payoff(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="payoff_table")
+        lower = prompt.lower()
+        assert "highest expected proposer payoff" in lower
+
+    def test_payoff_table_prompt_mentions_tied_prefer_less_deceptive(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="payoff_table")
+        lower = prompt.lower()
+        assert "tied" in lower or "close" in lower
+        assert "less deceptive" in lower
+
+    def test_payoff_table_prompt_says_return_json_only(self):
+        prompt = build_proposer_prompt(_proposer_obs(), strategy="payoff_table")
+        lower = prompt.lower()
+        assert "return only json" in lower or "only json" in lower
+
+    def test_payoff_table_prompt_distinct_from_other_strategies(self):
+        obs = _proposer_obs()
+        pt_prompt = build_proposer_prompt(obs, strategy="payoff_table")
+        for other in ("honest_fair", "self_interested", "deceptive", "risk_aware", "expected_value"):
+            assert pt_prompt != build_proposer_prompt(obs, strategy=other)
+
+    def test_invalid_strategy_still_raises(self):
+        with pytest.raises(ValueError, match="Unknown strategy"):
+            LLMProposer(FakeLLMClient(), strategy="payoff_table_extra")
