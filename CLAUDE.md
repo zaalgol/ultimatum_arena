@@ -87,6 +87,23 @@ The `expected_value` strategy prompt has been calibrated through a staged prompt
 
 Local Gemma 3 setup has been verified with Ollama: `gemma3:latest` and `gemma3:4b` are available locally, and `RUN_OLLAMA_TESTS=1 python -m pytest tests/test_ollama_client.py` passes when Ollama is running.
 
+## Scope
+
+The implemented game is the "Audit with Hidden Pie" variant. To avoid re-implementing or accidentally extending the game, the current boundaries are:
+
+Implemented:
+
+- One-shot Hidden Pie Audit round: true pie private to the proposer, responder sees only the claimed pie and the public pie range.
+- Public claim plus offer, accept/reject responder decision.
+- Audit probability, lie detection on audit, lie penalty applied even on rejection.
+- Heuristic and LLM agents, JSONL/CSV/JSON outputs, plots, sweeps.
+
+Not implemented (intentionally out of scope unless explicitly requested):
+
+- Reputation loss, bans, or repeated-game reputation leagues.
+- Noisy/partial audit signals or an outside option for the responder.
+- Multi-issue bargaining and prompt-attack/adversarial variants.
+
 ## Architecture
 
 One-shot Hidden Pie Ultimatum rounds flow like this:
@@ -126,7 +143,7 @@ Do not rewrite these interfaces. Future agents should subclass `BaseProposer` or
 - `ultimatum_arena/analysis/plots.py`: `plot_metric_by_audit_prob()` (group by any field), `plot_metric_by_audit_prob_for_strategies()` (group by strategy, optional lie_penalty filter), `save_aggregate_csv()` (aggregate means by strategy/audit/penalty).
 - `ultimatum_arena/analysis/sweep_summary.py`: `summarize_strategy_by_audit_risk(rows, strategy, *, lie_penalty=None)` — pure helper that filters by strategy/penalty, groups by `audit_prob`, averages across seeds, returns rows sorted by `audit_prob`; raises `ValueError` for no-match. `summarize_adaptive_strategies(rows, strategies, *, lie_penalty=None)` — calls the above for multiple strategies, concatenates, skips missing strategies silently. Both helpers coerce numeric fields from strings so they work with CSV-loaded rows.
 - `ultimatum_arena/storage/jsonl.py`: JSONL/JSON persistence helpers.
-- `ultimatum_arena/llm/`: provider-agnostic LLM layer, fake client, parser, prompts, LLM agents, and local Ollama client. `OllamaLLMClient` catches bare `TimeoutError` (the Python 3.3+ socket timeout) and re-raises it as `OllamaConnectionError`.
+- `ultimatum_arena/llm/`: provider-agnostic LLM layer, fake client, parser, prompts, LLM agents, `OllamaLLMClient`, and `OpenAIResponsesClient`. `OllamaLLMClient` catches bare `TimeoutError` (the Python 3.3+ socket timeout) and re-raises it as `OllamaConnectionError`.
 - `ultimatum_arena/llm/openai_client.py`: `OpenAIResponsesClient`, a stdlib HTTP client for the OpenAI Responses API. Reads `OPENAI_API_KEY` from the environment and implements the same `generate(prompt: str) -> str` protocol as Ollama/Fake clients.
 - `scripts/run_gemma3_strategy_set.ps1`: sequentially runs the Gemma demo for `honest_fair`, `self_interested`, and `deceptive` proposer strategies.
 - `scripts/run_gemma3_research_sweep.py`: Phase 4 CLI — presets `smoke`, `research`, `risk`, and `ev`, all dimensions overridable; writes full output tree including plots and aggregate CSV. When `risk_aware` is included, prints an additional deception-by-audit-risk table.
@@ -303,20 +320,28 @@ Phase 3A (complete):
 - No API keys.
 - Gemma proposer strategy profiles and sequential local strategy runner.
 
-Phase 4 (starting):
+Phase 4 (in progress):
 
 - `run_llm_strategy_sweep()` for systematic multi-strategy experiments.
 - `run_gemma3_research_sweep.py` CLI with smoke and research presets.
 - Aggregate CSV and strategy plots from sweep outputs.
-- No paid providers. No async. No database.
 
-Later provider phases:
+Phase 3B provider scope:
 
-- OpenAI/Anthropic-compatible clients.
-- API key handling.
-- Paid model comparison experiments.
+- The OpenAI comparison probe (`scripts/probe_openai_expected_value_comparison.py`) is the only paid-provider integration.
+- Do not add further provider clients or paid-model workflows unless explicitly requested.
+- Anthropic-compatible client not yet added.
 
-Do not add paid providers, API key handling, async architecture, databases, web UI, notebooks as primary execution path, or advanced game variants unless explicitly requested.
+Architecture constraints:
+
+- No additional paid providers.
+- No async architecture.
+- No databases.
+- No web UI.
+- No notebooks as primary execution path.
+- No advanced game variants.
+
+Do not add these elements unless explicitly requested.
 
 ## Extending With New Agents
 

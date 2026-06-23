@@ -1,5 +1,12 @@
 ﻿# Code Review
 
+> **Status: HISTORICAL — resolved, retained for reference (as of 2026-06-23).**
+> This is a snapshot of a past review, not an active to-do list. Do not reopen these findings without re-verifying against current code.
+>
+> - **P2 `ExpectedValueProposer` validation** — RESOLVED. `__init__()` now validates all fractions (`ultimatum_arena/agents/proposers.py:107-114`).
+> - **P2 hook-settings churn** — historical note about `.claude/settings.local.json`; verify against current settings before acting.
+> - **P3 transient probe outcomes** — partially addressed; `README.md`/`CLAUDE.md` now phrase Gemma observations as model-/temperature-/seed-dependent. `AGENTS.md` referenced below no longer exists (merged into `CLAUDE.md`).
+
 ## Findings
 
 ### P2 - `ExpectedValueProposer` accepts invalid fraction parameters and fails later in `act()`

@@ -42,15 +42,27 @@ Requires Python 3.11+. Runtime dependencies: `pydantic>=2.0`, `matplotlib>=3.7`.
 
 ## Quick Start
 
+### Minimal local run (no external services)
+
+This is the recommended first path. It needs no API keys and no Ollama.
+
 ```bash
 # Run all tests
 python -m pytest
 
 # Run the Phase 1 demo (heuristic agents, full sweep, plots)
 python scripts/run_hidden_pie_demo.py
+```
 
-# Run the Gemma 3 demo (LLM agents via local Ollama)
+The Phase 1 demo writes to a new timestamped folder under `outputs/hidden_pie_demo/YYYYMMDD_HHMMSS/`; inspect the JSONL logs, `sweep_summary.csv`, and plots there.
+
+### Optional local LLM runs (requires Ollama + Gemma 3)
+
+```bash
+# One-time setup
 ollama pull gemma3
+
+# Single Gemma 3 demo run
 python scripts/run_gemma3_hidden_pie_demo.py
 
 # Run all three Gemma proposer strategies sequentially
@@ -66,7 +78,14 @@ python scripts/probe_expected_value_comparison.py --model gemma3
 python scripts/run_gemma3_research_sweep.py --preset ev --model gemma3
 ```
 
-The Phase 1 demo writes to a new timestamped folder under `outputs/hidden_pie_demo/YYYYMMDD_HHMMSS/`.
+### Optional paid-provider probe (requires `OPENAI_API_KEY`)
+
+```bash
+# Set the key first (Windows: setx OPENAI_API_KEY "..." then reopen PowerShell)
+python scripts/probe_openai_expected_value_comparison.py --model gpt-5.4-mini --rounds 3
+```
+
+Never commit API keys. See the [Roadmap](#roadmap) for current provider status.
 
 ---
 
@@ -313,9 +332,11 @@ save_aggregate_csv(rows, "outputs/aggregate.csv")
 | **Phase 1** | Complete | Hidden Pie Audit game, heuristic agents, sweep runner, CSV/JSON output, matplotlib plots |
 | **Phase 2** | Complete | LLM agent infrastructure: `LLMClient` protocol, `FakeLLMClient` for tests, prompt builders, response parser, `LLMProposer`/`LLMResponder` |
 | **Phase 3A** | Complete | Local Ollama/Gemma support through `OllamaLLMClient`; no API keys required |
-| **Phase 3B** | Planned | Paid provider clients such as OpenAI-compatible and Anthropic-compatible clients |
-| **Phase 4** | Starting | Systematic multi-strategy research sweeps: `run_llm_strategy_sweep`, aggregate CSV, strategy plots |
+| **Phase 3B** | In progress | Paid provider clients. `OpenAIResponsesClient` and the OpenAI comparison probe exist; reads `OPENAI_API_KEY` at runtime. Anthropic-compatible client not yet added. |
+| **Phase 4** | In progress | Systematic multi-strategy research sweeps: `run_llm_strategy_sweep`, aggregate CSV, strategy plots |
 | **Phase 5** | Planned | Multi-model comparison; head-to-head proposer vs responder matchups; adversarial prompting benchmarks |
+
+> **Provider scope:** the OpenAI comparison probe is the only paid-provider integration. Do not add further provider clients or paid-model workflows unless explicitly requested.
 
 ---
 
@@ -330,7 +351,7 @@ ultimatum_arena/
   analysis/     compute_metrics, plot_metric_by_audit_prob, plot_metric_by_audit_prob_for_strategies,
                 save_aggregate_csv
   storage/      JSONL + JSON persistence helpers
-  llm/          LLMClient protocol, FakeLLMClient, OllamaLLMClient, prompts, parser
+  llm/          LLMClient protocol, FakeLLMClient, OllamaLLMClient, OpenAIResponsesClient, prompts, parser
 scripts/
   run_hidden_pie_demo.py            Phase 1 end-to-end demo (heuristic agents)
   run_gemma3_hidden_pie_demo.py     Single-run Gemma 3 demo
@@ -338,12 +359,14 @@ scripts/
   run_gemma3_research_sweep.py      Phase 4 full research sweep with presets
   probe_gemma3_expected_value.py    Fast expected-value calibration probe (3 cells, ~3 min)
   probe_expected_value_comparison.py  EV comparison probe: deterministic baseline vs Gemma strategies
+  probe_openai_expected_value_comparison.py  EV comparison probe via OpenAI (needs OPENAI_API_KEY)
 outputs/                           Runtime artifacts (gitignored)
   hidden_pie_demo/                 Heuristic demo outputs
   gemma3_demo/                     Single Gemma demo outputs
   gemma3_research/                 Research sweep outputs
   gemma3_expected_value_probe/     Expected-value probe outputs
   expected_value_comparison_probe/ EV comparison probe outputs
+  openai_expected_value_comparison_probe/  OpenAI EV comparison probe outputs
 tests/                             Unit tests (2 live-Ollama integration tests skipped by default)
 ```
 
