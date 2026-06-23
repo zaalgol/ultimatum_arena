@@ -3,18 +3,22 @@
 from ultimatum_arena.llm.client import FakeLLMClient, LLMClient
 from ultimatum_arena.llm.agents import LLMProposer, LLMResponder
 from ultimatum_arena.llm.ollama_client import OllamaLLMClient
+from ultimatum_arena.llm.openai_client import OpenAIResponsesClient
 from ultimatum_arena.llm.errors import (
     LLMError,
     LLMParseError,
     LLMResponseError,
     OllamaConnectionError,
     OllamaModelNotFoundError,
+    OpenAIAPIKeyError,
+    OpenAIConnectionError,
 )
 
 __all__ = [
     "LLMClient",
     "FakeLLMClient",
     "OllamaLLMClient",
+    "OpenAIResponsesClient",
     "LLMProposer",
     "LLMResponder",
     "LLMError",
@@ -22,4 +26,6 @@ __all__ = [
     "LLMResponseError",
     "OllamaConnectionError",
     "OllamaModelNotFoundError",
+    "OpenAIAPIKeyError",
+    "OpenAIConnectionError",
 ]

@@ -26,3 +26,6 @@ env/
 .vscode/
 .idea/
 *.swp
+
+
+.claude\settings.local.json

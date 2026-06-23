@@ -19,3 +19,11 @@ class OllamaConnectionError(LLMError):
 
 class OllamaModelNotFoundError(LLMError):
     """Raised when the requested model is not available in Ollama."""
+
+
+class OpenAIAPIKeyError(LLMError):
+    """Raised when the OpenAI API key is missing or rejected."""
+
+
+class OpenAIConnectionError(LLMError):
+    """Raised when the OpenAI API cannot be reached."""

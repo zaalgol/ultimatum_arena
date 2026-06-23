@@ -345,6 +345,14 @@ from scripts.probe_expected_value_comparison import (  # noqa: E402
     main as comparison_main,
 )
 
+from scripts.probe_openai_expected_value_comparison import (  # noqa: E402
+    DEFAULT_MODEL as OPENAI_DEFAULT_MODEL,
+    OUTPUT_ROOT as OPENAI_COMPARISON_OUTPUT_ROOT,
+    _parse_args as _openai_comparison_parse_args,
+    _save_openai_manifest,
+    main as openai_comparison_main,
+)
+
 
 class TestComparisonScriptImport:
     def test_can_import_without_side_effects(self):
@@ -521,3 +529,95 @@ class TestComparisonMainCellsNotCartesian:
 
         for c in mock_sweep.call_args_list:
             assert len(c.kwargs["lie_penalties"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests for scripts/probe_openai_expected_value_comparison.py (no API required)
+# ---------------------------------------------------------------------------
+
+class TestOpenAIComparisonParseArgs:
+    def test_default_model(self):
+        args = _openai_comparison_parse_args([])
+        assert args.model == "gpt-5.4-mini"
+        assert OPENAI_DEFAULT_MODEL == "gpt-5.4-mini"
+
+    def test_default_rounds(self):
+        args = _openai_comparison_parse_args([])
+        assert args.rounds == 10
+
+    def test_rounds_override(self):
+        args = _openai_comparison_parse_args(["--rounds", "3"])
+        assert args.rounds == 3
+
+    def test_max_output_tokens_override(self):
+        args = _openai_comparison_parse_args(["--max-output-tokens", "256"])
+        assert args.max_output_tokens == 256
+
+
+class TestOpenAIComparisonOutputRoot:
+    def test_output_root_under_outputs(self):
+        assert "outputs" in str(OPENAI_COMPARISON_OUTPUT_ROOT)
+
+    def test_output_root_contains_probe_name(self):
+        assert "openai_expected_value_comparison_probe" in str(OPENAI_COMPARISON_OUTPUT_ROOT)
+
+
+class TestOpenAIComparisonManifest:
+    def test_manifest_records_openai_provider(self, tmp_path):
+        import json
+
+        args = _openai_comparison_parse_args(["--model", "gpt-5.4-mini", "--rounds", "3"])
+        _save_openai_manifest(
+            tmp_path,
+            cells=_comparison_probe_cells(),
+            llm_strategies=DEFAULT_LLM_STRATEGIES,
+            args=args,
+        )
+
+        manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["provider"] == "openai"
+        assert manifest["model"] == "gpt-5.4-mini"
+        assert manifest["n_rounds"] == 3
+        assert manifest["all_strategies"] == ["calculator_expected_value"] + DEFAULT_LLM_STRATEGIES
+
+
+class TestOpenAIComparisonMainCellsNotCartesian:
+    def _fake_calc_rows(self, cells, *, n_rounds, seed, output_dir):
+        return [
+            {"strategy": "calculator_expected_value", "audit_prob": ap, "lie_penalty": lp}
+            for ap, lp in cells
+        ]
+
+    def test_llm_sweep_called_once_per_cell(self):
+        with (
+            patch("scripts.probe_openai_expected_value_comparison._run_calculator_rows", side_effect=self._fake_calc_rows),
+            patch(
+                "scripts.probe_openai_expected_value_comparison.run_llm_strategy_sweep",
+                return_value=[{"strategy": "expected_value", "audit_prob": 0.0, "lie_penalty": 0.0}],
+            ) as mock_sweep,
+            patch("scripts.probe_openai_expected_value_comparison._save_combined_csv"),
+            patch("scripts.probe_openai_expected_value_comparison._save_openai_manifest"),
+            patch("scripts.probe_openai_expected_value_comparison.OpenAIResponsesClient"),
+        ):
+            openai_comparison_main(["--rounds", "1"])
+
+        assert mock_sweep.call_count == len(_comparison_probe_cells())
+
+    def test_each_llm_call_uses_single_paired_cell(self):
+        with (
+            patch("scripts.probe_openai_expected_value_comparison._run_calculator_rows", side_effect=self._fake_calc_rows),
+            patch(
+                "scripts.probe_openai_expected_value_comparison.run_llm_strategy_sweep",
+                return_value=[{"strategy": "expected_value", "audit_prob": 0.0, "lie_penalty": 0.0}],
+            ) as mock_sweep,
+            patch("scripts.probe_openai_expected_value_comparison._save_combined_csv"),
+            patch("scripts.probe_openai_expected_value_comparison._save_openai_manifest"),
+            patch("scripts.probe_openai_expected_value_comparison.OpenAIResponsesClient"),
+        ):
+            openai_comparison_main(["--rounds", "1"])
+
+        called_pairs = [
+            (c.kwargs["audit_probabilities"][0], c.kwargs["lie_penalties"][0])
+            for c in mock_sweep.call_args_list
+        ]
+        assert sorted(called_pairs) == sorted(_comparison_probe_cells())
