@@ -92,6 +92,13 @@ class TestParseArgs:
     def test_provider_openai(self):
         assert parse_args(["--provider", "openai"]).provider == "openai"
 
+    def test_provider_claude(self):
+        assert parse_args(["--provider", "claude"]).provider == "claude"
+
+    def test_provider_invalid_rejected(self):
+        with pytest.raises(SystemExit):
+            parse_args(["--provider", "anthropic-api"])
+
 
 class TestConstants:
     def test_injection_message_has_attack_phrases(self):
@@ -190,3 +197,15 @@ class TestMain:
         manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
         assert manifest["provider"] == "openai"
         assert manifest["model"] == "gpt-5.4-mini"
+
+    def test_claude_provider_uses_patched_client(self, tmp_path):
+        with patch(
+            "scripts.probe_responder_injection.ClaudeCLIClient", _ConditionAwareFakeClient
+        ), patch("scripts.probe_responder_injection.OUTPUT_ROOT", tmp_path):
+            main(["--provider", "claude", "--model", "sonnet", "--repeats", "1",
+                  "--ratios", "0.12", "--modes", "robust"])
+
+        run_dir = next(tmp_path.iterdir())
+        manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["provider"] == "claude"
+        assert manifest["model"] == "sonnet"

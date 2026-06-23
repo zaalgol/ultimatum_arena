@@ -37,8 +37,10 @@ if str(_repo_root) not in sys.path:
 
 from ultimatum_arena.envs.hidden_pie_audit import HiddenPieAuditEnv
 from ultimatum_arena.llm.agents import LLMProposer, LLMResponder
+from ultimatum_arena.llm.claude_cli_client import ClaudeCLIClient
 from ultimatum_arena.llm.client import LLMClient
 from ultimatum_arena.llm.errors import (
+    ClaudeCLIError,
     LLMError,
     LLMParseError,
     OllamaConnectionError,
@@ -49,6 +51,10 @@ from ultimatum_arena.llm.errors import (
 from ultimatum_arena.llm.ollama_client import OllamaLLMClient
 from ultimatum_arena.llm.openai_client import OpenAIResponsesClient
 from ultimatum_arena.runners.prompt_attack import run_prompt_attack_experiment
+
+# When --provider claude is selected but --model is left at the ollama default,
+# fall back to this Claude alias.
+DEFAULT_CLAUDE_MODEL = "sonnet"
 
 OUTPUT_ROOT = _repo_root / "outputs" / "prompt_attack_demo"
 
@@ -67,8 +73,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--provider",
         default="ollama",
-        choices=["ollama", "openai"],
-        help="LLM provider (default: ollama / local Gemma).",
+        choices=["ollama", "openai", "claude"],
+        help=(
+            "LLM provider (default: ollama / local Gemma). 'claude' uses the "
+            "Claude Code CLI session (no API key); pass --model sonnet/opus/haiku."
+        ),
     )
     parser.add_argument("--model", default="gemma3", help="Model tag (default: gemma3)")
     parser.add_argument("--rounds", default=3, type=int, help="Number of rounds (default: 3)")
@@ -128,6 +137,11 @@ def _make_client(args: argparse.Namespace) -> LLMClient:
             max_output_tokens=args.max_output_tokens,
             timeout=120.0,
         )
+    if args.provider == "claude":
+        # Session-backed Claude via the CLI (no API key). Use a Claude alias when
+        # --model was left at the ollama default.
+        model = args.model if args.model != "gemma3" else DEFAULT_CLAUDE_MODEL
+        return ClaudeCLIClient(model=model, timeout=180.0)
     return OllamaLLMClient(model=args.model, temperature=args.temperature, timeout=120.0)
 
 
@@ -290,6 +304,12 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
     except OpenAIConnectionError as exc:
         print(f"\nERROR: Cannot connect to OpenAI.\n  {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ClaudeCLIError as exc:
+        print(f"\nERROR: Claude CLI (session) call failed.\n  {exc}", file=sys.stderr)
+        print("  -> Confirm Claude Code is installed and `claude` is on PATH.", file=sys.stderr)
+        print("  -> Confirm you are logged in (run `claude` once interactively).", file=sys.stderr)
+        print("  -> Try a valid model alias, e.g. --model sonnet|opus|haiku.", file=sys.stderr)
         sys.exit(1)
     except LLMParseError as exc:
         print(f"\nERROR: Model returned output that could not be parsed.\n  {exc}", file=sys.stderr)

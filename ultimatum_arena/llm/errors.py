@@ -27,3 +27,7 @@ class OpenAIAPIKeyError(LLMError):
 
 class OpenAIConnectionError(LLMError):
     """Raised when the OpenAI API cannot be reached."""
+
+
+class ClaudeCLIError(LLMError):
+    """Raised when the session-backed Claude Code CLI invocation fails."""

@@ -306,8 +306,13 @@ message against an injection message across a sweep of offer levels:
 ```bash
 python scripts/probe_responder_injection.py                          # local Gemma, temp 0
 python scripts/probe_responder_injection.py --modes naive robust --ratios 0.12 0.40
+python scripts/probe_responder_injection.py --provider claude --model sonnet   # session, no key
 python scripts/probe_responder_injection.py --provider openai --model gpt-5.4-mini
 ```
+
+The probe supports the same three providers as the demo (`ollama`, `claude`,
+`openai`), so you can compare injection resistance across local Gemma and an
+external model (Claude via your session, or OpenAI) on identical stimuli.
 
 The decisive signal is a per-cell **reject→accept flip**: an offer the responder
 rejects with a neutral message but accepts under injection. The probe prints a
@@ -319,14 +324,25 @@ Interpretation note: a mode showing **0 flips because it accepts everything**
 ### Run against an external model
 
 ```bash
+# Claude via the Claude Code CLI session (no API key — reuses your login)
+python scripts/run_prompt_attack_ultimatum_demo.py --provider claude --model sonnet --rounds 3
+
 # OpenAI Responses API (requires OPENAI_API_KEY; never commit keys)
 python scripts/run_prompt_attack_ultimatum_demo.py --provider openai --model gpt-5.4-mini --rounds 3
 ```
 
-`--provider openai` is the only path that reads `OPENAI_API_KEY`; the default
-`ollama` provider needs no key. The default proposer strategy is
-`prompt_attack`, the default responder mode is `standard`, and the default is
-3 rounds at temperature 0.2.
+Three providers are supported:
+
+- `ollama` (default) — local Gemma, no key.
+- `claude` — routes through the local `claude` CLI in headless mode, reusing
+  your existing Claude Code **session** (OAuth). No `ANTHROPIC_API_KEY` needed.
+  Pass a Claude alias via `--model` (`sonnet`, `opus`, `haiku`). Requires Claude
+  Code installed and logged in. Note: each call spawns a `claude` subprocess and
+  consumes your Claude usage; it is slower than a direct API.
+- `openai` — OpenAI Responses API; the only path that reads `OPENAI_API_KEY`.
+
+The default proposer strategy is `prompt_attack`, the default responder mode is
+`standard`, and the default is 3 rounds at temperature 0.2.
 
 ### Outputs
 
@@ -485,7 +501,7 @@ save_aggregate_csv(rows, "outputs/aggregate.csv")
 | **Phase 4** | In progress | Systematic multi-strategy research sweeps: `run_llm_strategy_sweep`, aggregate CSV, strategy plots |
 | **Phase 5** | In progress | Adversarial prompting benchmark: Prompt-Attack Ultimatum (`prompt_attack` proposer, robust/standard/naive responder modes, deterministic attack classifier and metrics). Multi-model head-to-head matchups still planned. |
 
-> **Provider scope:** the OpenAI comparison probe is the only paid-provider integration. Do not add further provider clients or paid-model workflows unless explicitly requested.
+> **Provider scope:** OpenAI (`OpenAIResponsesClient`) is the only paid-API integration and reads `OPENAI_API_KEY`. `ClaudeCLIClient` is session-backed — it shells out to the local `claude` CLI and uses your existing Claude Code login, so it needs no API key (but consumes your Claude usage). Do not add further provider clients or paid-model workflows unless explicitly requested.
 
 ---
 
@@ -501,7 +517,8 @@ ultimatum_arena/
   analysis/     compute_metrics, plot_metric_by_audit_prob, plot_metric_by_audit_prob_for_strategies,
                 save_aggregate_csv, classify_prompt_attack_message, compute_prompt_attack_metrics
   storage/      JSONL + JSON persistence helpers
-  llm/          LLMClient protocol, FakeLLMClient, OllamaLLMClient, OpenAIResponsesClient, prompts, parser
+  llm/          LLMClient protocol, FakeLLMClient, OllamaLLMClient, OpenAIResponsesClient,
+                ClaudeCLIClient (session-backed, no API key), prompts, parser
 scripts/
   run_hidden_pie_demo.py            Phase 1 end-to-end demo (heuristic agents)
   run_gemma3_hidden_pie_demo.py     Single-run Gemma 3 demo

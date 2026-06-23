@@ -43,6 +43,7 @@ python scripts/run_gemma3_hidden_pie_demo.py
 # Prompt-Attack Ultimatum demo: test prompt-injection resilience
 python scripts/run_prompt_attack_ultimatum_demo.py
 python scripts/run_prompt_attack_ultimatum_demo.py --provider openai --model gpt-5.4-mini --rounds 3
+python scripts/run_prompt_attack_ultimatum_demo.py --provider claude --model sonnet --rounds 3
 python scripts/run_prompt_attack_ultimatum_demo.py --compare-responder-modes
 
 # Run all three Gemma proposer strategies sequentially
@@ -71,6 +72,7 @@ python scripts/probe_openai_expected_value_comparison.py --model gpt-5.4-mini --
 # Tests neutral vs injection-attack messages with fixed observations for clean signal
 python scripts/probe_responder_injection.py
 python scripts/probe_responder_injection.py --provider openai --model gpt-5.4-mini
+python scripts/probe_responder_injection.py --provider claude --model sonnet
 
 # Optional live Ollama tests, requires Ollama running and gemma3 installed
 $env:RUN_OLLAMA_TESTS="1"
@@ -170,15 +172,16 @@ Do not rewrite these interfaces. Future agents should subclass `BaseProposer` or
 - `ultimatum_arena/analysis/prompt_attack.py`: `classify_prompt_attack_message(message: str) -> dict` detects lexical attack markers in proposer messages; `compute_prompt_attack_metrics(results: list[RoundResult]) -> dict` analyzes attack success, acceptance, and offer patterns. Markers are matched case-insensitively as substrings and include directives like "ignore previous instructions", "you must accept", and JSON-injection attempts.
 - `ultimatum_arena/analysis/sweep_summary.py`: `summarize_strategy_by_audit_risk(rows, strategy, *, lie_penalty=None)` — pure helper that filters by strategy/penalty, groups by `audit_prob`, averages across seeds, returns rows sorted by `audit_prob`; raises `ValueError` for no-match. `summarize_adaptive_strategies(rows, strategies, *, lie_penalty=None)` — calls the above for multiple strategies, concatenates, skips missing strategies silently. Both helpers coerce numeric fields from strings so they work with CSV-loaded rows.
 - `ultimatum_arena/storage/jsonl.py`: JSONL/JSON persistence helpers.
-- `ultimatum_arena/llm/`: provider-agnostic LLM layer, fake client, parser, prompts, LLM agents, `OllamaLLMClient`, and `OpenAIResponsesClient`. `OllamaLLMClient` catches bare `TimeoutError` (the Python 3.3+ socket timeout) and re-raises it as `OllamaConnectionError`. The `build_responder_prompt()` function accepts an optional `prompt_mode` parameter: `"standard"` (default) shows the proposer's public message plainly, `"robust"` wraps it in untrusted-data delimiters and instructs the model to reject embedded instructions (clarifying that ignoring a manipulative message is NOT the same as rejecting the offer; responders should judge the offer's economics independently), and `"naive"` presents it credulously as an intentionally vulnerable baseline for testing.
+- `ultimatum_arena/llm/`: provider-agnostic LLM layer, fake client, parser, prompts, LLM agents, `OllamaLLMClient`, `OpenAIResponsesClient`, and `ClaudeCLIClient`. `OllamaLLMClient` catches bare `TimeoutError` (the Python 3.3+ socket timeout) and re-raises it as `OllamaConnectionError`. The `build_responder_prompt()` function accepts an optional `prompt_mode` parameter: `"standard"` (default) shows the proposer's public message plainly, `"robust"` wraps it in untrusted-data delimiters and instructs the model to reject embedded instructions (clarifying that ignoring a manipulative message is NOT the same as rejecting the offer; responders should judge the offer's economics independently), and `"naive"` presents it credulously as an intentionally vulnerable baseline for testing.
 - `ultimatum_arena/llm/openai_client.py`: `OpenAIResponsesClient`, a stdlib HTTP client for the OpenAI Responses API. Reads `OPENAI_API_KEY` from the environment and implements the same `generate(prompt: str) -> str` protocol as Ollama/Fake clients.
+- `ultimatum_arena/llm/claude_cli_client.py`: `ClaudeCLIClient`, a session-backed client for the local Claude Code CLI (`claude -p`). Uses OAuth authentication (no API key required) by reusing the user's existing Claude Code session. Runs the CLI in a neutral temporary working directory to prevent auto-discovery of `CLAUDE.md` and contamination of agent behavior. Implements the same `generate(prompt: str) -> str` protocol as other clients.
 - `scripts/run_gemma3_strategy_set.ps1`: sequentially runs the Gemma demo for `honest_fair`, `self_interested`, and `deceptive` proposer strategies.
-- `scripts/run_prompt_attack_ultimatum_demo.py`: Prompt-Attack Ultimatum demo CLI — runs prompt-attack rounds with local Ollama or external OpenAI models; supports both standard and robust responder modes; outputs JSONL, summary JSON, and attack metrics to `outputs/prompt_attack_demo/<timestamp>/`.
+- `scripts/run_prompt_attack_ultimatum_demo.py`: Prompt-Attack Ultimatum demo CLI — runs prompt-attack rounds with local Ollama, external OpenAI, or Claude Code CLI (`--provider claude`, no API key); supports both standard and robust responder modes; outputs JSONL, summary JSON, and attack metrics to `outputs/prompt_attack_demo/<timestamp>/`.
 - `scripts/run_gemma3_research_sweep.py`: Phase 4 CLI — presets `smoke`, `research`, `risk`, and `ev`, all dimensions overridable; writes full output tree including plots and aggregate CSV. When `risk_aware` is included, prints an additional deception-by-audit-risk table.
 - `scripts/probe_gemma3_expected_value.py`: fast calibration probe for the `expected_value` strategy — runs 3 audit/penalty cells (zero risk, moderate, maximum) with small defaults (10 rounds, seed 1); prints a compact results table; exposes `_probe_cells()` and `_parse_args()` for testing. Outputs under `outputs/gemma3_expected_value_probe/<timestamp>/`.
 - `scripts/probe_expected_value_comparison.py`: comparison probe — runs `calculator_expected_value` (deterministic `ExpectedValueProposer`), `expected_value`, `payoff_table`, and `deceptive` across the same 3 cells and prints a unified table. The deterministic baseline uses `ThresholdResponder(min_fraction=0.25)`. Outputs under `outputs/expected_value_comparison_probe/<timestamp>/`.
 - `scripts/probe_openai_expected_value_comparison.py`: OpenAI version of the comparison probe. Defaults to `gpt-5.4-mini`; use `--rounds 3` for a cheap sanity check. Outputs under `outputs/openai_expected_value_comparison_probe/<timestamp>/`.
-- `scripts/probe_responder_injection.py`: controlled responder prompt-injection probe — feeds the **same fixed observations** to every responder prompt mode and compares acceptance rates when the proposer sends a neutral message vs a prompt-injection message across a sweep of offer levels. The decisive signal is a per-cell **reject→accept flip**: an offer rejected with neutral message but accepted under injection. Runs across responder modes (e.g., `standard`, `robust`, `naive`), prints a neutral-vs-injection table and a per-mode flip count, and writes `results.json` + `manifest.json` under `outputs/responder_injection_probe/<timestamp>/`. Supports both local Gemma (default) and OpenAI models.
+- `scripts/probe_responder_injection.py`: controlled responder prompt-injection probe — feeds the **same fixed observations** to every responder prompt mode and compares acceptance rates when the proposer sends a neutral message vs a prompt-injection message across a sweep of offer levels. The decisive signal is a per-cell **reject→accept flip**: an offer rejected with neutral message but accepted under injection. Runs across responder modes (e.g., `standard`, `robust`, `naive`), prints a neutral-vs-injection table and a per-mode flip count, and writes `results.json` + `manifest.json` under `outputs/responder_injection_probe/<timestamp>/`. Supports local Gemma (default), OpenAI, and Claude Code CLI models.
 
 ## Phase 1 Demo
 
@@ -292,8 +295,9 @@ Public LLM pieces:
 - `FakeLLMClient`: deterministic test client
 - `LLMProposer`, with proposer strategy profiles: `honest_fair`, `self_interested`, `deceptive`, `risk_aware`, `expected_value`, `payoff_table`, and `prompt_attack`
 - `LLMResponder`, with responder prompt modes (constructor parameter `prompt_mode`, default `"standard"`): `standard` (shows proposer message plainly), `robust` (wraps message in untrusted-data delimiters and instructs the model to reject embedded directives), or `naive` (intentionally vulnerable baseline that presents message credulously)
-- `OllamaLLMClient`
-- `OpenAIResponsesClient`
+- `OllamaLLMClient`: local Ollama models
+- `OpenAIResponsesClient`: OpenAI API client (requires `OPENAI_API_KEY`)
+- `ClaudeCLIClient`: Claude Code CLI client (session-based, no API key)
 - prompt builders (`build_proposer_prompt`, `build_responder_prompt`) and robust JSON extraction/parser
 
 Local Gemma 3 via Ollama:
@@ -378,9 +382,9 @@ Phase 5 (in progress):
 
 Phase 3B provider scope:
 
-- `OpenAIResponsesClient` is the only paid-provider client. Two scripts reuse it: the OpenAI comparison probe (`scripts/probe_openai_expected_value_comparison.py`) and the Prompt-Attack demo's `--provider openai` path (`scripts/run_prompt_attack_ultimatum_demo.py`). Both read `OPENAI_API_KEY` only when the OpenAI path is selected.
+- `OpenAIResponsesClient` is a paid-provider client (reads `OPENAI_API_KEY`). Two scripts reuse it: the OpenAI comparison probe (`scripts/probe_openai_expected_value_comparison.py`) and the Prompt-Attack demo's `--provider openai` path (`scripts/run_prompt_attack_ultimatum_demo.py`). Both read `OPENAI_API_KEY` only when the OpenAI path is selected.
+- `ClaudeCLIClient` is an Anthropic-compatible client that uses the local Claude Code CLI in headless mode with OAuth/session-based authentication (no API key required). It provides access to Claude models (`sonnet`, `opus`, `haiku`) via the user's existing Claude Code session. Each call spawns a `claude` subprocess and consumes Claude usage; it is slower than a direct API. Requires Claude Code installed and logged in. The CLI runs in a neutral temporary working directory to prevent auto-discovery of `CLAUDE.md` and contamination of agent behavior.
 - Do not add further provider clients or paid-model workflows unless explicitly requested.
-- Anthropic-compatible client not yet added.
 
 Architecture constraints:
 
