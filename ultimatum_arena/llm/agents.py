@@ -6,7 +6,12 @@ from ultimatum_arena.agents.base import BaseProposer, BaseResponder
 from ultimatum_arena.llm.client import LLMClient
 from ultimatum_arena.llm.errors import LLMParseError
 from ultimatum_arena.llm.parser import parse_proposer_response, parse_responder_response
-from ultimatum_arena.llm.prompts import VALID_STRATEGIES, build_proposer_prompt, build_responder_prompt
+from ultimatum_arena.llm.prompts import (
+    VALID_RESPONDER_PROMPT_MODES,
+    VALID_STRATEGIES,
+    build_proposer_prompt,
+    build_responder_prompt,
+)
 from ultimatum_arena.schemas import (
     ProposerAction,
     ProposerObservation,
@@ -81,16 +86,33 @@ class LLMResponder(BaseResponder):
     ----------
     client:
         Any object satisfying the :class:`LLMClient` protocol.
+    prompt_mode:
+        One of ``"standard"`` (default), ``"robust"``, or ``"naive"``.  Selects
+        how the proposer's ``public_message`` is framed in the responder prompt.
+        ``robust`` treats the message as untrusted data and instructs the model
+        not to follow instructions embedded in it.  Raises :class:`ValueError`
+        for unknown modes.
     """
 
-    def __init__(self, client: LLMClient) -> None:
+    def __init__(self, client: LLMClient, prompt_mode: str = "standard") -> None:
+        if prompt_mode not in VALID_RESPONDER_PROMPT_MODES:
+            raise ValueError(
+                f"Unknown responder prompt mode {prompt_mode!r}. "
+                f"Valid modes: {sorted(VALID_RESPONDER_PROMPT_MODES)}"
+            )
         self._client = client
+        self._prompt_mode = prompt_mode
         self.last_prompt: str = ""
         self.last_raw_response: str = ""
         self.last_parse_error: str | None = None
 
+    @property
+    def prompt_mode(self) -> str:
+        """The responder prompt mode (``"standard"``, ``"robust"``, or ``"naive"``)."""
+        return self._prompt_mode
+
     def act(self, obs: ResponderObservation) -> ResponderAction:
-        prompt = build_responder_prompt(obs)
+        prompt = build_responder_prompt(obs, prompt_mode=self._prompt_mode)
         self.last_prompt = prompt
         self.last_parse_error = None
         text = self._client.generate(prompt)

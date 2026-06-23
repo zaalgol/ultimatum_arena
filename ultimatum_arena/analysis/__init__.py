@@ -6,6 +6,12 @@ from ultimatum_arena.analysis.plots import (
     plot_metric_by_audit_prob_for_strategies,
     save_aggregate_csv,
 )
+from ultimatum_arena.analysis.prompt_attack import (
+    ATTACK_MARKERS,
+    classify_prompt_attack_message,
+    compute_prompt_attack_metrics,
+    is_low_offer,
+)
 from ultimatum_arena.analysis.sweep_summary import (
     summarize_adaptive_strategies,
     summarize_strategy_by_audit_risk,
@@ -18,4 +24,8 @@ __all__ = [
     "save_aggregate_csv",
     "summarize_strategy_by_audit_risk",
     "summarize_adaptive_strategies",
+    "ATTACK_MARKERS",
+    "classify_prompt_attack_message",
+    "compute_prompt_attack_metrics",
+    "is_low_offer",
 ]
