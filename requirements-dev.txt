@@ -1,0 +1,6 @@
+# Development / test dependencies for ultimatum_arena.
+# Mirrors [project.optional-dependencies].dev in pyproject.toml.
+# Installs runtime requirements first, then the test tooling.
+-r requirements.txt
+pytest>=8.0
+pytest-cov

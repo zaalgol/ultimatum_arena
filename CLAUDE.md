@@ -5,7 +5,18 @@ Guidance for Claude Code when working in this repository.
 ## Commands
 
 ```bash
-# Install editable package with dev dependencies
+# Create and activate a virtual environment (run once)
+#   Windows (PowerShell): python -m venv .venv;  .\.venv\Scripts\Activate.ps1
+#   Linux / macOS:        python3 -m venv .venv; source .venv/bin/activate
+
+# Install runtime dependencies only (mirrors pyproject.toml)
+pip install -r requirements.txt
+
+# Install runtime + test tooling from requirements files, then the package
+pip install -r requirements-dev.txt
+pip install -e .
+
+# Equivalent one-step install of editable package with dev dependencies
 pip install -e ".[dev]"
 
 # Run all tests

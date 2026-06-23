@@ -1,0 +1,5 @@
+# Runtime dependencies for ultimatum_arena.
+# Mirrors [project].dependencies in pyproject.toml.
+# For an editable install with the package itself, use: pip install -e .
+pydantic>=2.0
+matplotlib>=3.7

@@ -30,13 +30,44 @@ Standard game theory predicts honest behaviour when audit probability × penalty
 
 ## Installation
 
+Requires Python 3.11+. Clone the repo, then create an isolated virtual environment and install the dependencies. Pick the block for your platform.
+
+**Windows (PowerShell):**
+
+```powershell
+git clone <repo>
+cd ultimatum_arena
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements-dev.txt
+pip install -e .
+```
+
+> If activation is blocked, allow scripts for the current user once:
+> `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+
+**Linux / macOS (bash or zsh):**
+
 ```bash
 git clone <repo>
 cd ultimatum_arena
-pip install -e ".[dev]"
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements-dev.txt
+pip install -e .
 ```
 
-Requires Python 3.11+. Runtime dependencies: `pydantic>=2.0`, `matplotlib>=3.7`.
+Dependency files:
+
+- `requirements.txt` — runtime only (`pydantic>=2.0`, `matplotlib>=3.7`).
+- `requirements-dev.txt` — runtime plus the test tooling (`pytest>=8.0`, `pytest-cov`).
+- `pip install -e .` installs the `ultimatum_arena` package itself (editable) so imports and scripts resolve.
+
+Alternatively, `pip install -e ".[dev]"` installs the package plus dev extras from `pyproject.toml` in one step (equivalent to `requirements-dev.txt` + editable install).
+
+To leave the environment later, run `deactivate`.
 
 ---
 
@@ -368,6 +399,9 @@ outputs/                           Runtime artifacts (gitignored)
   expected_value_comparison_probe/ EV comparison probe outputs
   openai_expected_value_comparison_probe/  OpenAI EV comparison probe outputs
 tests/                             Unit tests (2 live-Ollama integration tests skipped by default)
+requirements.txt                   Runtime dependencies (pydantic, matplotlib)
+requirements-dev.txt               Runtime + test tooling (pytest, pytest-cov)
+pyproject.toml                     Package metadata and dependency source of truth
 ```
 
 ---

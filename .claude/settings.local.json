@@ -12,7 +12,10 @@
       "Task",
       "Skill",
       "TodoWrite",
-      "NotebookEdit"
+      "NotebookEdit",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(.venv/Scripts/jupyter-nbconvert.exe:*)",
+      "Bash(python:*)"
     ]
   },
   "hooks": {
