@@ -47,6 +47,10 @@ python scripts/probe_gemma3_expected_value.py --model gemma3 --rounds 5 --seed 1
 python scripts/probe_expected_value_comparison.py --model gemma3
 python scripts/probe_expected_value_comparison.py --model gemma3 --rounds 5 --seed 1
 
+# OpenAI comparison probe: uses OPENAI_API_KEY and defaults to gpt-5.4-mini
+python scripts/probe_openai_expected_value_comparison.py
+python scripts/probe_openai_expected_value_comparison.py --model gpt-5.4-mini --rounds 3 --seed 1
+
 # Optional live Ollama tests, requires Ollama running and gemma3 installed
 $env:RUN_OLLAMA_TESTS="1"
 python -m pytest tests/test_ollama_client.py
@@ -58,9 +62,18 @@ Phase 1 is complete: Hidden Pie Ultimatum with Audit works as a heuristic-agent 
 
 Phase 2 is complete: the repository has an LLM layer with a provider-agnostic `LLMClient` protocol, `FakeLLMClient`, LLM-backed agents, prompt builders, JSON parsing, and raw LLM observability metadata in round logs.
 
-Phase 3A is complete: `OllamaLLMClient` runs Gemma 3 locally through Ollama. Paid provider clients and API key handling are not implemented yet.
+Phase 3A is complete: `OllamaLLMClient` runs Gemma 3 locally through Ollama. Phase 3B has started: `OpenAIResponsesClient` runs OpenAI models through the Responses API using `OPENAI_API_KEY` from the environment. Never commit API keys. On Windows, set the key with `setx OPENAI_API_KEY "..."`, then open a new PowerShell session before running OpenAI scripts.
 
 Phase 4 is in progress: `run_llm_strategy_sweep()` runs a full research grid (strategies × audit_probabilities × lie_penalties × seeds) with LLM agents, writes per-run logs, a combined CSV, an aggregate CSV (means across seeds), a manifest, and strategy plots. `scripts/run_gemma3_research_sweep.py` is the CLI entry point with presets `smoke`, `research`, `risk`, and `ev`. Six LLM proposer strategies are available: `honest_fair`, `self_interested`, `deceptive`, `risk_aware`, `expected_value`, and `payoff_table`. The `--preset ev` sweep compares four proposer strategies (`honest_fair`, `deceptive`, `risk_aware`, `expected_value`) across 4 audit probabilities, 3 penalties, and 3 seeds (144 runs). `summarize_strategy_by_audit_risk()` and `summarize_adaptive_strategies()` in `ultimatum_arena.analysis` are pure helpers to inspect adaptive deception trends; both work with in-memory and CSV-loaded rows.
+
+The six LLM proposer strategies differ as follows:
+
+- `honest_fair`: truthful claims, fair offers.
+- `self_interested`: truthful claims, lower/more variable offers, no deception.
+- `deceptive`: instruction-driven lying baseline; always underclaims (~60–70% of true pie) regardless of audit risk.
+- `risk_aware`: cautious/incentive-aware; told to weigh expected audit cost; in practice may avoid lying even at zero penalty.
+- `expected_value`: prompt-calibrated numeric maximizer (worked example + explicit `IF/ELSE` rule); in local Gemma 3 probes tends to underclaim at zero audit cost. Behaviour is model- and temperature-dependent.
+- `payoff_table`: structured A/B/C candidate table; delegates the arithmetic to the model; in local Gemma 3 probes tended toward honest reporting regardless of audit risk. Model-dependent observation — retest before treating as fact.
 
 `ExpectedValueProposer` is a **deterministic non-LLM proposer** in `ultimatum_arena/agents/proposers.py`. It evaluates three fixed candidates (honest at 45% offer, moderate underclaim at 65%, aggressive underclaim at 55%) using the formula `true_pie - offer - audit_prob * lie_penalty` and picks the highest-EV option. It is an incentive-correctness benchmark: if the game incentives are calibrated correctly, it should lie at zero audit risk and report honestly at high audit risk. Probe results confirm this: `deception_rate = 1.0` at `audit_prob=0, lie_penalty=0` and `deception_rate = 0.0` at `audit_prob=1, lie_penalty=50`.
 
@@ -69,6 +82,8 @@ Phase 4 is in progress: `run_llm_strategy_sweep()` runs a full research grid (st
 The `expected_value` strategy prompt has been calibrated through a staged prompt-engineering process. It uses a worked numerical example and an explicit `IF/ELSE` decision rule to instruct the model to underclaim (~55–65% of true pie) when `audit_prob × lie_penalty = 0`, and to report honestly when audit cost is high. In local Gemma 3 probes, it tended to underclaim at zero audit cost. Observed behaviour is model- and temperature-dependent; do not treat probe observations as stable guarantees. `scripts/probe_gemma3_expected_value.py` is the fast calibration check (3 audit/penalty cells, ~3 minutes); outputs go under `outputs/gemma3_expected_value_probe/<timestamp>/`.
 
 `scripts/probe_expected_value_comparison.py` is the **comparison probe**: runs `calculator_expected_value` (deterministic), `expected_value`, `payoff_table`, and `deceptive` across the same 3 cells and prints a unified table. Use this before committing to a full sweep to check whether a new strategy actually adapts. Outputs go under `outputs/expected_value_comparison_probe/<timestamp>/`.
+
+`scripts/probe_openai_expected_value_comparison.py` is the same comparison probe using OpenAI-hosted models instead of local Ollama. It defaults to `gpt-5.4-mini`, reads `OPENAI_API_KEY` at runtime, and writes outputs under `outputs/openai_expected_value_comparison_probe/<timestamp>/`. Use this to check whether stronger models repeat the Gemma surprises before spending credit on larger sweeps.
 
 Local Gemma 3 setup has been verified with Ollama: `gemma3:latest` and `gemma3:4b` are available locally, and `RUN_OLLAMA_TESTS=1 python -m pytest tests/test_ollama_client.py` passes when Ollama is running.
 
@@ -106,16 +121,18 @@ Do not rewrite these interfaces. Future agents should subclass `BaseProposer` or
 - `ultimatum_arena/agents/__init__.py`: public agent exports, including `LLMProposer` and `LLMResponder`.
 - `ultimatum_arena/runners/basic.py`: `run_experiment()` for N-round runs. It optionally writes `{experiment_name}.jsonl` and `{experiment_name}_summary.json`.
 - `ultimatum_arena/runners/sweep.py`: `run_audit_penalty_sweep()` and `save_sweep_csv()` for heuristic agent grids.
-- `ultimatum_arena/runners/llm_sweep.py`: `run_llm_strategy_sweep()` — sweeps strategies × audit_probabilities × lie_penalties × seeds with LLM agents; writes `runs/`, `combined_summary.csv`, and `manifest.json` when `output_dir` is provided. The aggregate CSV and plots are produced by `scripts/run_gemma3_research_sweep.py`, not by the runner itself.
+- `ultimatum_arena/runners/llm_sweep.py`: `run_llm_strategy_sweep()` — sweeps strategies × audit_probabilities × lie_penalties × seeds with LLM agents; calls `proposer_client_factory` and `responder_client_factory` once per cell; writes `runs/`, `combined_summary.csv`, and `manifest.json` when `output_dir` is provided. The aggregate CSV and plots are produced by `scripts/run_gemma3_research_sweep.py`, not by the runner itself.
 - `ultimatum_arena/analysis/metrics.py`: pure `compute_metrics(list[RoundResult]) -> dict`.
 - `ultimatum_arena/analysis/plots.py`: `plot_metric_by_audit_prob()` (group by any field), `plot_metric_by_audit_prob_for_strategies()` (group by strategy, optional lie_penalty filter), `save_aggregate_csv()` (aggregate means by strategy/audit/penalty).
 - `ultimatum_arena/analysis/sweep_summary.py`: `summarize_strategy_by_audit_risk(rows, strategy, *, lie_penalty=None)` — pure helper that filters by strategy/penalty, groups by `audit_prob`, averages across seeds, returns rows sorted by `audit_prob`; raises `ValueError` for no-match. `summarize_adaptive_strategies(rows, strategies, *, lie_penalty=None)` — calls the above for multiple strategies, concatenates, skips missing strategies silently. Both helpers coerce numeric fields from strings so they work with CSV-loaded rows.
 - `ultimatum_arena/storage/jsonl.py`: JSONL/JSON persistence helpers.
-- `ultimatum_arena/llm/`: provider-agnostic LLM layer, fake client, parser, prompts, LLM agents, and local Ollama client.
+- `ultimatum_arena/llm/`: provider-agnostic LLM layer, fake client, parser, prompts, LLM agents, and local Ollama client. `OllamaLLMClient` catches bare `TimeoutError` (the Python 3.3+ socket timeout) and re-raises it as `OllamaConnectionError`.
+- `ultimatum_arena/llm/openai_client.py`: `OpenAIResponsesClient`, a stdlib HTTP client for the OpenAI Responses API. Reads `OPENAI_API_KEY` from the environment and implements the same `generate(prompt: str) -> str` protocol as Ollama/Fake clients.
 - `scripts/run_gemma3_strategy_set.ps1`: sequentially runs the Gemma demo for `honest_fair`, `self_interested`, and `deceptive` proposer strategies.
 - `scripts/run_gemma3_research_sweep.py`: Phase 4 CLI — presets `smoke`, `research`, `risk`, and `ev`, all dimensions overridable; writes full output tree including plots and aggregate CSV. When `risk_aware` is included, prints an additional deception-by-audit-risk table.
 - `scripts/probe_gemma3_expected_value.py`: fast calibration probe for the `expected_value` strategy — runs 3 audit/penalty cells (zero risk, moderate, maximum) with small defaults (10 rounds, seed 1); prints a compact results table; exposes `_probe_cells()` and `_parse_args()` for testing. Outputs under `outputs/gemma3_expected_value_probe/<timestamp>/`.
 - `scripts/probe_expected_value_comparison.py`: comparison probe — runs `calculator_expected_value` (deterministic `ExpectedValueProposer`), `expected_value`, `payoff_table`, and `deceptive` across the same 3 cells and prints a unified table. The deterministic baseline uses `ThresholdResponder(min_fraction=0.25)`. Outputs under `outputs/expected_value_comparison_probe/<timestamp>/`.
+- `scripts/probe_openai_expected_value_comparison.py`: OpenAI version of the comparison probe. Defaults to `gpt-5.4-mini`; use `--rounds 3` for a cheap sanity check. Outputs under `outputs/openai_expected_value_comparison_probe/<timestamp>/`.
 
 ## Phase 1 Demo
 
@@ -218,6 +235,7 @@ Public LLM pieces:
 - `LLMProposer`, with proposer strategy profiles: `honest_fair`, `self_interested`, `deceptive`, `risk_aware`, `expected_value`, and `payoff_table`
 - `LLMResponder`
 - `OllamaLLMClient`
+- `OpenAIResponsesClient`
 - prompt builders and robust JSON extraction/parser
 
 Local Gemma 3 via Ollama:
@@ -299,6 +317,10 @@ Later provider phases:
 - Paid model comparison experiments.
 
 Do not add paid providers, API key handling, async architecture, databases, web UI, notebooks as primary execution path, or advanced game variants unless explicitly requested.
+
+## Extending With New Agents
+
+Subclass `BaseProposer` or `BaseResponder`, implement `act()`, and optionally override `on_round_result()` for stateful agents. Pass the instance to `run_experiment()` — no other changes are needed.
 
 ## Coding Guidance
 
