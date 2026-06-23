@@ -1,26 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pip install:*)",
-      "Bash(python -m pytest tests/ -v)",
-      "Skill(update-config)",
-      "Bash(python:*)",
+      "Bash",
       "Read",
       "Write",
       "Edit",
-      "Bash(curl -s http://localhost:11434/api/tags)",
-      "Bash(curl:*)",
-      "Bash(where ollama:*)",
-      "Bash(ollama serve:*)",
-      "Read(//tmp/**)",
-      "Read(//c/Users/zaalg/AppData/Local/Temp/claude/**)",
-      "Bash(git checkout:*)",
+      "Glob",
+      "Grep",
       "WebSearch",
-      "WebFetch(domain:platform.openai.com)",
-      "WebFetch(domain:developers.openai.com)",
-      "Bash(git rm *)",
-      "Bash(git add *)",
-      "Bash(git commit *)"
+      "WebFetch",
+      "Task",
+      "Skill",
+      "TodoWrite",
+      "NotebookEdit"
     ]
   },
   "hooks": {
