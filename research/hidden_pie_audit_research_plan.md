@@ -1,6 +1,6 @@
 # Audit with Hidden Pie — Research Plan
 
-**Status:** in progress — **Sections 1–5 complete (2026-06-24)**; only Section 6 (synthesis) remains · **Updated:** 2026-06-24 per `review.md` (§1c) · **Created:** 2026-06-24 · **Scope:** the core "Audit with Hidden Pie" Ultimatum variant (`HiddenPieAuditEnv`) — proposer deception under audit incentives. The Prompt-Attack variant is a *separate* study ([`prompt_attack_research_plan.md`](prompt_attack_research_plan.md)).
+**Status:** **COMPLETE (2026-06-24)** — Sections 1–6 done. Synthesis in [`hidden_pie_audit_findings.md`](hidden_pie_audit_findings.md) §6 · **Updated:** 2026-06-24 per `review.md` (§1c) · **Created:** 2026-06-24 · **Scope:** the core "Audit with Hidden Pie" Ultimatum variant (`HiddenPieAuditEnv`) — proposer deception under audit incentives. The Prompt-Attack variant is a *separate* study ([`prompt_attack_research_plan.md`](prompt_attack_research_plan.md)).
 
 > Results logged in §10 below and detailed in [`hidden_pie_audit_findings.md`](hidden_pie_audit_findings.md).
 
@@ -387,3 +387,33 @@ applies even on rejection). Discounting the claimed pie is the wrong protective 
 [`hidden_pie_audit_findings.md`](hidden_pie_audit_findings.md) §5.
 
 **Anomalies:** none. **Next:** Section 6 synthesis (no Claude budget); optional Opus tier + more seeds.
+
+### Section 6 — Synthesis — **DONE 2026-06-24**
+
+Full synthesis (master deception-by-audit-cost table, headline findings, RQ answers, relation to
+the Prompt-Attack study, limitations, optional extensions) written to
+[`hidden_pie_audit_findings.md`](hidden_pie_audit_findings.md) §6. Key points:
+
+- **Incentive calibration is a capability Claude has and Gemma lacks:** only the deterministic
+  oracle and Claude (both tiers) lie at low audit cost and report honestly at high cost; Gemma's
+  LLM strategies are flat fixed dispositions. (Reverses the naive "stronger model deceives less".)
+- **Claude's refusal is narrow/framing-keyed** — only the labeled `deceptive` strategy, only Haiku;
+  the same underclaiming under an EV framing is performed with zero refusals. Tier inversion (Haiku
+  refuses, Sonnet complies), visible only via the refusal-safe probe.
+- **The `SuspiciousResponder` rewards deception** (discounts the claimed pie → lowers the bar);
+  rejection is the real deterrent via the audit penalty.
+- **Relation to Prompt-Attack study:** Claude's alignment blocks the *explicitly adversarial/
+  deceptive framing*, not the underlying strategic behavior framed as legitimate optimization.
+
+**Total study budget:** ~216 Claude calls (~108 Haiku + ~108 Sonnet); all Gemma/deterministic runs
+free/local.
+
+---
+
+## 11. Status: complete
+
+All planned sections (1–6) are done (2026-06-24). [`hidden_pie_audit_findings.md`](hidden_pie_audit_findings.md)
+is the primary deliverable; §6 is the synthesis. The refusal-safe instrument
+`scripts/probe_deception.py` (tested, 18 tests) is the reusable artifact. Optional, not in scope:
+Opus tier, higher n / more seeds, and the full `ev`/`research` Gemma sweeps for publication-grade
+curves.
