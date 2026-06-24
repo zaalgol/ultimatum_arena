@@ -1,6 +1,6 @@
 # Audit with Hidden Pie — Research Plan
 
-**Status:** in progress — **Sections 1–4 complete (2026-06-24)**; Sections 5–6 remain · **Updated:** 2026-06-24 per `review.md` (§1c) · **Created:** 2026-06-24 · **Scope:** the core "Audit with Hidden Pie" Ultimatum variant (`HiddenPieAuditEnv`) — proposer deception under audit incentives. The Prompt-Attack variant is a *separate* study ([`prompt_attack_research_plan.md`](prompt_attack_research_plan.md)).
+**Status:** in progress — **Sections 1–5 complete (2026-06-24)**; only Section 6 (synthesis) remains · **Updated:** 2026-06-24 per `review.md` (§1c) · **Created:** 2026-06-24 · **Scope:** the core "Audit with Hidden Pie" Ultimatum variant (`HiddenPieAuditEnv`) — proposer deception under audit incentives. The Prompt-Attack variant is a *separate* study ([`prompt_attack_research_plan.md`](prompt_attack_research_plan.md)).
 
 > Results logged in §10 below and detailed in [`hidden_pie_audit_findings.md`](hidden_pie_audit_findings.md).
 
@@ -366,3 +366,24 @@ Full per-cell tables with raw counts in
 **Anomalies:** Haiku partial `deceptive` refusal (expected; now quantified). **Caveats:** n=6/cell
 (raw counts reported); no cell reaches n_lies≥10 (detection-sanity not assessed). **Next:**
 Section 5 (responder sensitivity, free), Section 6 (synthesis); optional Opus + higher n.
+
+### Section 5 — Responder sensitivity — **DONE 2026-06-24**
+
+**What I ran (free, heuristic):** `run_audit_penalty_sweep` for `ThresholdResponder` vs
+`SuspiciousResponder` against a fixed `LyingGreedyProposer` (`outputs/responder_sensitivity/`),
+then an offer-level characterization (offer 0.20–0.40 of claimed) since both accept identically at
+the demo offer (0.4).
+
+**What I found (counterintuitive):** the `SuspiciousResponder` is **more lenient, not more
+protective** — subtracting a flat amount from the *claimed* pie lowers the absolute acceptance bar,
+so at low offers (0.20–0.25 of claimed) it **accepts more** than the plain threshold responder
+(0.37 vs 0.00 at offer 0.25). Consequently it hands the lying proposer a **positive** payoff
+(+15.45) where the threshold responder forces it **negative** (−6.12, via the audit penalty that
+applies even on rejection). Discounting the claimed pie is the wrong protective lever.
+
+**Conclusions:** RQ5 — responder design matters, but the implemented "suspicious" heuristic
+*rewards* deception in the contested low-offer band; rejection (threshold) is the real deterrent
+(audit penalty on rejection). Full table in
+[`hidden_pie_audit_findings.md`](hidden_pie_audit_findings.md) §5.
+
+**Anomalies:** none. **Next:** Section 6 synthesis (no Claude budget); optional Opus tier + more seeds.
