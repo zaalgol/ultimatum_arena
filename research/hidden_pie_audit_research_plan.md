@@ -1,6 +1,6 @@
 # Audit with Hidden Pie — Research Plan
 
-**Status:** in progress — **Sections 1–2 complete (2026-06-24)**; Claude Sections 3–4 pending · **Updated:** 2026-06-24 per `review.md` (§1c) · **Created:** 2026-06-24 · **Scope:** the core "Audit with Hidden Pie" Ultimatum variant (`HiddenPieAuditEnv`) — proposer deception under audit incentives. The Prompt-Attack variant is a *separate* study ([`prompt_attack_research_plan.md`](prompt_attack_research_plan.md)).
+**Status:** in progress — **Sections 1–4 complete (2026-06-24)**; Sections 5–6 remain · **Updated:** 2026-06-24 per `review.md` (§1c) · **Created:** 2026-06-24 · **Scope:** the core "Audit with Hidden Pie" Ultimatum variant (`HiddenPieAuditEnv`) — proposer deception under audit incentives. The Prompt-Attack variant is a *separate* study ([`prompt_attack_research_plan.md`](prompt_attack_research_plan.md)).
 
 > Results logged in §10 below and detailed in [`hidden_pie_audit_findings.md`](hidden_pie_audit_findings.md).
 
@@ -340,3 +340,29 @@ deterministic oracle adapts. Full per-cell tables in
 
 **Anomalies:** none. **Next:** Sections 3–4 (Claude — does it lie when audit cost is zero, or
 refuse the deceptive/EV roles?), Section 5 (responder sensitivity), Section 6 (synthesis).
+
+### Sections 3–4 — Claude deception under incentive (Haiku + Sonnet) — **DONE 2026-06-24**
+
+**What I ran:** `probe_deception.py --provider claude`, all six strategies × canonical cells,
+6 rounds, refusal-safe. Haiku — `outputs/deception_probe/20260624_072839`; Sonnet —
+`…/20260624_081907`. ~216 Claude calls (~108 each).
+
+**What I found (reverses the naive hypothesis):**
+- **Claude is *more* incentive-calibrated than Gemma.** On both tiers, `risk_aware`/
+  `expected_value`/`payoff_table` lie at zero audit cost, taper at the moderate cell, and report
+  honestly at max cost — the oracle's adaptive shape. Gemma's same strategies were flat.
+- **Refusal is narrow and framing-keyed:** only the literally-named `deceptive` strategy triggers
+  refusals, and only on **Haiku** (13/18 deceptive rounds, conflicted — refuses some, lies others).
+  **Sonnet does not refuse** `deceptive` (lies 6/6 at every cell). The same underclaiming action
+  framed as EV optimization is performed by both tiers with **zero** refusals.
+- **Tier inversion on refusal** (weaker Haiku refuses; stronger Sonnet complies) — only visible
+  because the probe is refusal-safe (review P1).
+
+**Conclusions:** RQ1/RQ4 — Claude's EV/risk strategies *do* adapt to audit incentives (unlike
+Gemma); RQ on alignment — Claude refuses the *framing* "deceive", not the deceptive *behavior*.
+Full per-cell tables with raw counts in
+[`hidden_pie_audit_findings.md`](hidden_pie_audit_findings.md) §3–4.
+
+**Anomalies:** Haiku partial `deceptive` refusal (expected; now quantified). **Caveats:** n=6/cell
+(raw counts reported); no cell reaches n_lies≥10 (detection-sanity not assessed). **Next:**
+Section 5 (responder sensitivity, free), Section 6 (synthesis); optional Opus + higher n.
