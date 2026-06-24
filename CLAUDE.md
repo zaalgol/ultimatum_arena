@@ -74,6 +74,18 @@ python scripts/probe_responder_injection.py
 python scripts/probe_responder_injection.py --provider openai --model gpt-5.4-mini
 python scripts/probe_responder_injection.py --provider claude --model sonnet
 
+# Deception probe: refusal-safe measurement of proposer lying across audit-cost cells
+# Records model refusals as data (no crash); proposes only, responder is heuristic (1 call/round)
+# All six strategies on canonical cells (uniform coverage for model comparison):
+python scripts/probe_deception.py --provider ollama --model gemma3 --rounds 20 `
+  --strategies honest_fair self_interested deceptive risk_aware expected_value payoff_table
+# Claude Code CLI (refusal-safe across all six):
+python scripts/probe_deception.py --provider claude --model haiku --rounds 10 `
+  --strategies honest_fair self_interested deceptive risk_aware expected_value payoff_table
+# Quick test with subset:
+python scripts/probe_deception.py --provider ollama --model gemma3 --rounds 5 --seed 1
+python scripts/probe_deception.py --provider claude --model haiku --strategies risk_aware payoff_table
+
 # Optional live Ollama tests, requires Ollama running and gemma3 installed
 $env:RUN_OLLAMA_TESTS="1"
 python -m pytest tests/test_ollama_client.py
@@ -204,6 +216,7 @@ Do not rewrite these interfaces. Future agents should subclass `BaseProposer` or
 - `scripts/probe_expected_value_comparison.py`: comparison probe — runs `calculator_expected_value` (deterministic `ExpectedValueProposer`), `expected_value`, `payoff_table`, and `deceptive` across the same 3 cells and prints a unified table. The deterministic baseline uses `ThresholdResponder(min_fraction=0.25)`. Outputs under `outputs/expected_value_comparison_probe/<timestamp>/`.
 - `scripts/probe_openai_expected_value_comparison.py`: OpenAI version of the comparison probe. Defaults to `gpt-5.4-mini`; use `--rounds 3` for a cheap sanity check. Outputs under `outputs/openai_expected_value_comparison_probe/<timestamp>/`.
 - `scripts/probe_responder_injection.py`: controlled responder prompt-injection probe — feeds the **same fixed observations** to every responder prompt mode and compares acceptance rates when the proposer sends a neutral message vs a prompt-injection message across a sweep of offer levels. The decisive signal is a per-cell **reject→accept flip**: an offer rejected with neutral message but accepted under injection. Runs across responder modes (e.g., `standard`, `robust`, `naive`), prints a neutral-vs-injection table and a per-mode flip count, and writes `results.json` + `manifest.json` under `outputs/responder_injection_probe/<timestamp>/`. Supports local Gemma (default), OpenAI, and Claude Code CLI models.
+- `scripts/probe_deception.py`: refusal-safe deception probe — measures whether an LLM **proposer** lies about the hidden pie as a function of audit cost across canonical audit/penalty cells. Responder is a fixed heuristic `ThresholdResponder` (no model calls), so deception is measured at one proposer call per round — matters for Claude Code CLI budget. **Refusal-safe**: when the proposer returns a value-based refusal (e.g., Claude declines to author a deceptive strategy), the round is recorded as a `refusal` with raw text and the probe continues to the next round/cell instead of aborting. Supports Ollama (default, e.g., `--model gemma3`) and Claude Code CLI (`--provider claude`, no API key). Outputs `results.json` + `manifest.json` (with refusal counts/examples) under `outputs/deception_probe/<timestamp>/`.
 
 ## Phase 1 Demo
 
