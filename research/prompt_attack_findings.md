@@ -1,6 +1,6 @@
 # Prompt-Attack Ultimatum — Findings
 
-**Status:** in progress · **Plan:** [`prompt_attack_research_plan.md`](prompt_attack_research_plan.md)
+**Status:** **COMPLETE (2026-06-23)** — Sections 1–7 done, incl. optional Opus tier · **Plan:** [`prompt_attack_research_plan.md`](prompt_attack_research_plan.md)
 
 Numbers are derived from each run's `results.json` under
 `outputs/responder_injection_probe/<timestamp>/` (gitignored — run IDs recorded here for

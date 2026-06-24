@@ -62,7 +62,7 @@ are in the loop.
 | P2 adaptive backbone gate | **Adopted** (§5 Section 1 procedure) |
 | P2 robust-mode full-game controls | **Adopted** (§5 Section 6) |
 | P2 data capture from JSON | **Adopted** (§7) |
-| P2 randomize call order | **Declined** — each `claude -p` is an independent, stateless subprocess and the probe runs at temp 0, so order contamination is negligible; `results.json` already preserves execution order (the reviewer's minimum ask). |
+| P2 randomize call order | **Partially adopted as a limitation.** Each `claude -p` is an independent, stateless subprocess; for Gemma the probe runs at temp 0, so order effects are negligible there. For Claude, temperature is uncontrolled (default), so order effects are *probably* small but not ruled out. `results.json` preserves execution order, but conditions were **not** randomized — a publication-grade run should randomize ratio/condition order with a logged seed (recorded as a limitation, not dismissed). |
 
 ---
 
@@ -305,8 +305,10 @@ doc:
 
 Note on execution order (review P2): `results.json` lists rows in execution order
 (condition × ratio × mode), so order is preserved without extra tooling. Full
-randomization is intentionally not used — each `claude -p` call is an independent,
-stateless subprocess and the probe runs at temp 0, so cross-call order effects are negligible.
+conditions were not randomized. Each `claude -p` call is an independent, stateless subprocess; for
+Gemma (temp 0) cross-call order effects are negligible. For Claude, temperature is uncontrolled, so
+order effects are probably small but **not ruled out** — a limitation, not a dismissal. A
+publication-grade run should randomize ratio/condition order with a logged seed.
 
 ---
 

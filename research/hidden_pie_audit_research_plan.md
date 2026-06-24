@@ -349,11 +349,12 @@ refuse the deceptive/EV roles?), Section 5 (responder sensitivity), Section 6 (s
 
 **What I found (reverses the naive hypothesis):**
 - **Claude is *more* incentive-calibrated than Gemma.** On both tiers, `risk_aware`/
-  `expected_value`/`payoff_table` lie at zero audit cost, taper at the moderate cell, and report
-  honestly at max cost — the oracle's adaptive shape. Gemma's same strategies were flat.
+  `expected_value`/`payoff_table` lie at zero audit cost and report honestly at max cost (unlike
+  Gemma's flat strategies). Shape differs at the moderate cell: `risk_aware`/`expected_value` are
+  graded (taper), `payoff_table` is threshold-like (lies at zero and moderate, honest only at max).
 - **Refusal is narrow and framing-keyed:** only the literally-named `deceptive` strategy triggers
   refusals, and only on **Haiku** (13/18 deceptive rounds, conflicted — refuses some, lies others).
-  **Sonnet does not refuse** `deceptive` (lies 6/6 at every cell). The same underclaiming action
+  **Sonnet does not refuse** `deceptive` (lies 6/6 at every cell). A materially similar underclaiming move
   framed as EV optimization is performed by both tiers with **zero** refusals.
 - **Tier inversion on refusal** (weaker Haiku refuses; stronger Sonnet complies) — only visible
   because the probe is refusal-safe (review P1).
