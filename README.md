@@ -388,6 +388,124 @@ from ultimatum_arena.analysis import classify_prompt_attack_message, compute_pro
 
 ---
 
+## Reputation Network League
+
+The Reputation Network League is the **multi-agent, repeated-competition** variant.
+Instead of two agents in one isolated match, a **population** of agents plays a
+**season** of one-shot Hidden Pie Audit matches. Across the season each agent
+accumulates payoff, a bounded **public reputation**, **private memory** of the
+opponents it has met, and (optionally) publishes **public gossip** about opponents.
+Match-making can be **random** or **reputation-based**.
+
+It is built entirely on top of the existing one-shot game — it does not modify
+`HiddenPieAuditEnv`, the base agents, the LLM clients, or `compute_metrics`.
+
+### How it differs from one-shot Hidden Pie Audit
+
+| One-shot Hidden Pie Audit | Reputation Network League |
+|---|---|
+| Two fixed agents, N rounds | Many agents, a season of matches, opponents vary |
+| No cross-match memory | Per-agent **private memory** of each opponent (capped) |
+| No social signal | **Public reputation** + optional **public gossip** |
+| Fixed pairing | **random** or **reputation-based** match-making |
+| Per-round metrics | Season metrics: welfare, Gini, leaderboard, rep/payoff correlation |
+
+### Reputation, memory, and gossip (information regimes)
+
+- **Public reputation** is a deterministic, bounded rolling EMA in `[0, 100]`. By
+  default it is a **ground-truth evaluator** signal (the scorekeeper sees `true_pie`):
+  it rewards a proposer for sharing a fair share of the pie and penalises deception,
+  detected lies, and prompt-attack markers. A **public-information-only** variant is
+  available via `ReputationConfig(use_ground_truth=False)`. Responders are not scored
+  by default (`score_responders=False`), so reputation reflects proposer behaviour.
+- **Private memory** and **gossip** are **public-information-only**: an audit makes
+  `true_pie` public for *that match*, so an opponent's truthfulness is only known on
+  audited matches. The hidden truth is never leaked to future agents otherwise.
+- **Gossip is untrusted.** It is labelled in LLM prompts as biased opinion, can never
+  change game rules, the hidden truth, the parser, or the output schema. Heuristic
+  agents ignore reputation/gossip entirely (a deterministic control); only LLM agents
+  read the social context.
+
+### Run a no-model heuristic smoke (no external services)
+
+```bash
+python scripts/run_reputation_league_demo.py --provider heuristic --agents 8 --matches 40 --matching random
+```
+
+### Run a local Gemma league (requires Ollama + Gemma 3)
+
+```bash
+python scripts/run_reputation_league_demo.py --provider ollama --model gemma3 --agents 6 --matches 20 --matching random
+python scripts/run_reputation_league_demo.py --provider ollama --model gemma3 --agents 8 --matches 60 --matching reputation_based --gossip deterministic
+```
+
+### Run a tiny Claude / OpenAI canary (usage-window aware / paid)
+
+```bash
+# Claude Code CLI session (no API key); each match is >= 2 model calls, so keep it tiny
+python scripts/run_reputation_league_demo.py --provider claude --model haiku --agents 4 --matches 8
+
+# OpenAI Responses API (only if explicitly requested; requires OPENAI_API_KEY)
+python scripts/run_reputation_league_demo.py --provider openai --model gpt-5.4-mini --agents 4 --matches 8
+```
+
+### Controlled reputation probe (does opponent standing flip decisions?)
+
+```bash
+# Same fixed offer under good vs bad opponent reputation/memory/gossip; measures the flip
+python scripts/probe_reputation_league.py --provider ollama --model gemma3 --responder-mode robust
+python scripts/probe_reputation_league.py --provider claude --model haiku
+```
+
+### Output layout
+
+Each season writes a timestamped tree under `outputs/reputation_league/<timestamp>/`:
+
+```text
+manifest.json                    # run config + provider/model + failure count
+matches.jsonl                    # one LeagueMatchRecord per ok match (before/after reputations)
+match_failures.jsonl             # refused/unparseable matches (only if any)
+final_agent_states.json          # per-agent payoff, reputation, deception counters
+public_reputation_history.csv    # reputation after each match (per updated agent)
+gossip.jsonl                     # published reviews (if gossip enabled)
+league_summary.json              # season metrics (compute_league_metrics)
+leaderboard.csv                  # ranked by total payoff
+```
+
+### Season metrics (`compute_league_metrics`)
+
+`total_welfare`, `payoff_gini`, `payoff_std`, `exploitability_quartile_gap`,
+`acceptance_rate`, `deception_rate`, `detected_lie_rate`, `mean_offer_ratio_true`,
+`mean_offer_ratio_claimed`, `fairness_gap_from_equal_true_split`,
+`deception_rate_first_half` / `_second_half` / `_change`,
+`reputation_payoff_correlation`, `reputation_acceptance_correlation`,
+`opponent_reputation_acceptance_correlation`, a ranked `leaderboard`, and (when gossip is
+on) `gossip_review_count`, `gossip_mean_rating`, `gossip_accuracy_vs_reputation`.
+
+### Limitations
+
+- A match is currently **one** Hidden Pie Audit round (per-pair repeated play is a future
+  extension); reputation/memory accumulate across the population, not within a fixed pair.
+- Default reputation uses **ground-truth** scoring; the public-information-only variant may
+  change conclusions.
+- LLM seasons are small (budget); treat single-season LLM numbers as pilots.
+- No reputation effects are claimed before running the research plan
+  ([`research/reputation_network_league_research_plan.md`](research/reputation_network_league_research_plan.md));
+  results are tracked in
+  [`research/reputation_network_league_findings.md`](research/reputation_network_league_findings.md).
+
+### Python API
+
+```python
+from ultimatum_arena.league import (
+    LeagueConfig, ReputationConfig, MemoryConfig, GossipConfig,
+    LeagueAgentProfile, HeuristicParticipant, LLMParticipant,
+    run_reputation_league, write_league_outputs, compute_league_metrics,
+)
+```
+
+---
+
 ## Python API
 
 ```python

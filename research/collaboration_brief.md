@@ -147,7 +147,11 @@ directions we'd love to shape together:
 4. **Construct validity.** Are we measuring "deception", "honesty norms", or "instruction-following"?
    A behavioral scientist's eye on operationalization and confounds is exactly what's needed.
 5. **Richer paradigms.** Reputation/repeated play, communication, partner beliefs, social framing — the
-   natural extensions once the base effects are pinned down.
+   natural extensions once the base effects are pinned down. *(A first step exists: a reputation-network
+   league — a population of agents playing repeated matches with public reputation, private memory, and
+   optional gossip — is implemented and mechanism-validated on deterministic agents, and is ready for an
+   LLM behavioral study. It has not yet been run with models, so we make no behavioral claims about it
+   here.)*
 
 ---
 
@@ -163,6 +167,13 @@ directions we'd love to shape together:
   the frontier model runs through an existing subscription (no per-call API billing for the current
   setup) — though subscription **usage-window limits still constrain sample sizes**, so frontier-model
   runs must be planned within those windows.
+- A **reputation-network league** layer over the Hidden-Pie game: a population of agents plays many
+  one-shot matches across a season, accumulating public reputation, private memory of opponents, and
+  optional public gossip, with random or reputation-based matchmaking — the natural vehicle for the
+  repeated-play / social-framing directions above. It is currently validated only on **deterministic**
+  agents (where it reproduces, e.g., exploiters out-earning honest players under random matching, and
+  reputation-based matching lowering payoff inequality); the LLM behavioral runs are an open next pilot,
+  not yet done.
 
 ---
 
@@ -189,4 +200,6 @@ experimental-design and theoretical partnership to do it well.
 
 *Technical companions to this brief (for the methodologically curious): the full per-experiment write-ups
 live alongside this document — `hidden_pie_audit_findings.md` and `prompt_attack_findings.md` — with the
-exact conditions, metrics, and run-level results.*
+exact conditions, metrics, and run-level results. The reputation-network league has a pre-registered
+plan and a deterministic-only findings stub (`reputation_network_league_research_plan.md`,
+`reputation_network_league_findings.md`); its LLM sections are not yet run.*
